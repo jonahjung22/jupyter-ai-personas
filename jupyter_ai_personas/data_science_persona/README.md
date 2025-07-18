@@ -1,275 +1,382 @@
-# PocketFlow Context Persona
+# 🧠 Advanced Data Science Agent
 
-A streamlined, high-performance context retrieval specialist built with PocketFlow framework. This persona provides the same functionality as the original Agno-based system but with significant improvements in performance, maintainability, and simplicity.
+An intelligent PocketFlow-powered data science persona that uses sophisticated reasoning to provide targeted, context-aware analysis and recommendations. This persona combines AI decision-making with deep notebook understanding to deliver actionable insights for data science projects.
 
 ## ✨ Key Features
 
-- **⚡ High Performance**: 1 LLM call vs 3 in the original system
-- **🏗️ Simplified Architecture**: 4 nodes vs 3 agents + team coordination
-- **🔧 Easy Debugging**: Clear node pipeline with deterministic logic
-- **📊 Smart Context Detection**: Automatically detects notebook analysis needs
-- **🔍 Intelligent RAG Search**: Multiple search strategies for comprehensive results
-- **🎯 Focused Responses**: Actionable recommendations based on context
+- **🤖 Intelligent Decision-Making**: Uses LLM reasoning to choose optimal analysis approaches
+- **🔄 Iterative Analysis**: Can perform multiple analysis rounds based on findings
+- **📊 Context Integration**: Combines repo context, notebook content, and conversation history
+- **🎯 Targeted Responses**: Provides focused analysis based on specific user needs
+- **📓 Smart Notebook Reading**: Automatically detects and analyzes notebook files
+- **⚡ Adaptive Workflows**: Routes between focused analysis and comprehensive reviews
+- **🛡️ Robust Error Handling**: Graceful fallbacks with detailed logging
 
-## 📁 Architecture Overview
+## 🏗️ Architecture Overview
 
+### **Agent-Based Architecture**
 ```
-PocketFlow Context Retrieval Pipeline
-├── InputAnalysisNode     → Parse request, detect context type
-├── NotebookExtractionNode → Extract notebook content (conditional)
-├── RAGSearchNode         → Search knowledge base intelligently
-└── ResponseGeneratorNode → Generate comprehensive response
+                    DataScienceAgent (Orchestrator)
+                            |
+                    ┌───────┴───────┐
+                    │   Load Context │
+                    │ • repo_context.md
+                    │ • notebook files
+                    └───────┬───────┘
+                            |
+                    ┌───────▼───────┐
+                    │ DecideAction  │ ◄──┐
+                    │ (Decision Node)│    │
+                    └───┬───────┬───┘    │
+                        │       │        │
+            ┌───────────▼───┐   │        │
+            │ DataAnalysis   │   │        │
+            │ (Focused)      │───┘        │
+            └───────────────┘            │
+                        │                │
+            ┌───────────▼───────────────┐│
+            │ CompleteAnalysis          ││
+            │ (Comprehensive)           ││
+            └───────────┬───────────────┘│
+                        │                │
+                ┌───────▼────────┐       │
+                │ Final Response │       │
+                └────────────────┘       │
+                                        │
+                    Loop Back ──────────┘
 ```
+
+### **Intelligent Decision Flow**
+1. **Context Loading**: Reads `repo_context.md` and notebook files
+2. **Decision Making**: LLM analyzes context and chooses action via YAML
+3. **Targeted Execution**: Routes to appropriate analysis node
+4. **Iterative Refinement**: Can loop back for additional analysis
+5. **Comprehensive Response**: Delivers actionable insights and code
 
 ## 🚀 Quick Start
 
-### Basic Usage
+### **Installation & Setup**
 
 ```python
-from pocketflow_persona import PocketFlowContextPersona
-
-# Create persona instance
-persona = PocketFlowContextPersona()
-
-# Simple query
-result = persona.process_simple_query("How do I use pandas for data analysis?")
-
-# Notebook analysis
-result = persona.process_notebook_query(
-    "notebook: /path/to/notebook.ipynb - help me with data cleaning"
-)
+# The persona is automatically available in Jupyter AI
+# Just ensure your environment has the required dependencies:
+pip install agno boto3 pyyaml
 ```
 
-### Flow-Level Usage
+### **Basic Usage**
 
 ```python
-from pocketflow_persona.flow import process_context_query
+# In Jupyter AI chat:
+@DataSciencePersona analyze my sales data
 
-# Process any query
-result = process_context_query("What is the best way to visualize data?")
+# With specific notebook:
+@DataSciencePersona notebook: path/to/analysis.ipynb help me improve my model
 
-# Process notebook query
-result = process_context_query(
-    "notebook: /Users/me/analysis.ipynb - optimize my machine learning model"
-)
+# For code generation:
+@DataSciencePersona generate code for feature engineering on my dataset
 ```
 
-## 📊 Performance Comparison
+### **Direct API Usage**
 
-| Metric | Original (Agno) | PocketFlow | Improvement |
-|--------|-----------------|------------|-------------|
-| LLM Calls | 3 per request | 1 per request | **3x faster** |
-| Lines of Code | 284 lines | ~150 lines | **47% reduction** |
-| Complexity | High (agent coordination) | Low (simple pipeline) | **Much simpler** |
-| Debugging | Difficult | Easy | **Clear flow** |
-| Memory Usage | High (3 agents) | Low (4 nodes) | **Lower overhead** |
+```python
+from jupyter_ai_personas.data_science_persona import DataSciencePersona
+
+# Create persona
+persona = DataSciencePersona()
+
+# Process analysis request
+result = await persona.process_message(message)
+```
+
+## 🧠 Agent Components
+
+### **1. DecideAction Node**
+**Purpose**: AI-powered decision making
+
+**Capabilities**:
+- Analyzes user intent and available context
+- Uses YAML-structured LLM responses for reliable parsing
+- Routes to appropriate analysis approaches
+- Tracks reasoning and action history
+
+**Decision Types**:
+- `analyze_data` → Focused data analysis
+- `generate_code` → Code generation and examples  
+- `explain_concept` → Conceptual explanations
+- `find_issues` → Problem identification and debugging
+- `create_visualization` → Visualization recommendations
+- `optimize_model` → Model improvement suggestions
+- `debug_code` → Code debugging assistance
+- `complete_analysis` → Comprehensive analysis
+
+### **2. DataAnalysis Node**
+**Purpose**: Targeted, focused analysis
+
+**Features**:
+- Performs specific analysis based on agent decisions
+- Provides targeted recommendations
+- Focuses on user's immediate questions
+- Can route back to decision node for iterative analysis
+
+**Output Format**:
+- **📊 Data Analysis**: Current state and quality assessment
+- **🔍 Specific Findings**: Direct answers to user questions
+- **💡 Recommendations**: Actionable next steps
+
+### **3. CompleteAnalysis Node**
+**Purpose**: Comprehensive data science analysis
+
+**Features**:
+- Full analysis combining all available context
+- Detailed code implementations
+- Strategic recommendations and roadmaps
+- Testing and validation approaches
+
+**Output Format**:
+- **📊 Current State Analysis**: Thorough assessment
+- **🎯 Targeted Recommendations**: Priority-ordered suggestions
+- **💻 Implementation Code**: Ready-to-use code snippets
+- **🔄 Next Steps Roadmap**: Strategic development plan
+- **🧪 Testing & Validation**: Quality assurance recommendations
+
+### **4. Context Loading System**
+**Purpose**: Intelligent file reading and context preparation
+
+**Features**:
+- **Automatic notebook detection**: Finds `.ipynb` files intelligently
+- **Explicit path support**: Handles `notebook: path/to/file.ipynb` syntax
+- **Recursive search**: Searches subdirectories when needed
+- **Repository context**: Reads `repo_context.md` for project understanding
+- **Conversation history**: Integrates chat history for context
+
+## 📊 Usage Examples
+
+### **1. Data Analysis Request**
+```python
+# User message:
+"@DataSciencePersona My sales model has poor accuracy. What's wrong?"
+
+# Agent process:
+1. DecideAction: Analyzes context → action: find_issues
+2. DataAnalysis: Examines notebook for model issues
+3. Response: Specific problems and solutions
+```
+
+### **2. Code Generation Request**
+```python
+# User message:
+"@DataSciencePersona generate feature engineering code for my dataset"
+
+# Agent process:
+1. DecideAction: Analyzes intent → action: generate_code
+2. CompleteAnalysis: Creates comprehensive implementation
+3. Response: Ready-to-use code with explanations
+```
+
+### **3. Comprehensive Analysis**
+```python
+# User message:
+"@DataSciencePersona notebook: analysis.ipynb review my entire approach"
+
+# Agent process:
+1. Load Context: Reads analysis.ipynb + repo_context.md
+2. DecideAction: Comprehensive scope → action: complete_analysis
+3. CompleteAnalysis: Full review with strategic recommendations
+4. Response: Complete analysis with roadmap
+```
 
 ## 🔧 Configuration
 
-### Default Configuration
-
+### **AWS Bedrock Setup**
 ```python
-from pocketflow_persona.config import PocketFlowConfig
-
-config = PocketFlowConfig()
-
-# Customize settings
-config = PocketFlowConfig(
-    rag={"search_results_limit": 15},
-    features={"enable_detailed_logging": True}
-)
+# Configure in Jupyter AI settings
+{
+  "model_provider": "bedrock",
+  "model_id": "anthropic.claude-3-sonnet-20240229-v1:0",
+  "api_keys": {
+    "AWS_ACCESS_KEY_ID": "your-key",
+    "AWS_SECRET_ACCESS_KEY": "your-secret"
+  }
+}
 ```
 
-### Environment Variables
+### **Repository Context**
+Create a `repo_context.md` file in your working directory:
 
-```bash
-# Optional: Override default notebook path
-export POCKETFLOW_DEFAULT_NOTEBOOK="/path/to/default.ipynb"
+```markdown
+# Project Context
+## Overview
+Sales prediction project using linear regression
 
-# Optional: Enable debug logging
-export POCKETFLOW_DEBUG=true
+## Goals
+- Predict monthly sales revenue
+- Identify key factors affecting sales
+- Optimize marketing spend allocation
+
+## Current Status
+- Basic model implemented
+- Accuracy: 65% (needs improvement)
+- Next: Feature engineering and model selection
 ```
 
-## 📝 Usage Examples
-
-### 1. Simple Data Science Questions
-
+### **Notebook Path Formats**
 ```python
-query = "What's the difference between pandas merge and join?"
-result = process_context_query(query)
-print(result["response"])
+# Supported formats:
+"notebook: /absolute/path/to/file.ipynb"
+"notebook: relative/path/to/file.ipynb"  
+"/direct/path/to/notebook.ipynb"  # Direct path in message
+# Auto-detection: Searches current directory and subdirectories
 ```
 
-### 2. Notebook Analysis
+## 🧪 Advanced Features
 
+### **Iterative Analysis**
+The agent can perform multiple analysis rounds:
+
+```
+User Request → DecideAction → DataAnalysis → DecideAction → CompleteAnalysis → Final Response
+```
+
+### **YAML Decision Parsing**
+Robust parsing with multiple fallback strategies:
+- Primary: YAML parsing of LLM response
+- Fallback 1: Text extraction for common patterns
+- Fallback 2: Default comprehensive analysis
+
+### **Error Recovery**
+- **Model unavailable**: Falls back to structured templates
+- **File not found**: Provides guidance and continues with available context
+- **YAML parsing errors**: Uses text extraction fallbacks
+- **Configuration issues**: Detailed error messages with troubleshooting
+
+## 📈 Performance & Monitoring
+
+### **Logging Levels**
 ```python
-query = """
-notebook: /Users/me/data_analysis.ipynb
-I'm having trouble with my data cleaning process. 
-Can you help me optimize it?
-"""
-result = process_context_query(query)
-print(result["response"])
+# Debug logging shows:
+- Notebook path detection process
+- Decision reasoning from LLM  
+- Action routing decisions
+- Context loading details
+- YAML parsing attempts
+
+# Info logging shows:
+- Agent initialization status
+- Processing summary
+- Success/failure status
+- Action history
 ```
 
-### 3. Library-Specific Help
-
-```python
-query = "How do I create interactive plots with plotly?"
-result = process_context_query(query)
-print(result["response"])
+### **Processing Summary**
+Every response includes:
 ```
-
-## 🔍 Node Details
-
-### 1. InputAnalysisNode
-**Purpose**: Parse user input and detect context type
-- Detects notebook context indicators
-- Extracts notebook paths
-- Sets up shared state for pipeline
-
-**Key Features**:
-- Fast string parsing (no LLM needed)
-- Automatic default path assignment
-- Context flag setting
-
-### 2. NotebookExtractionNode
-**Purpose**: Extract notebook content when needed
-- Only executes if notebook context detected
-- Comprehensive content extraction
-- Library and analysis stage detection
-
-**Key Features**:
-- Conditional execution
-- Reuses existing notebook reader tool
-- Structured content parsing
-
-### 3. RAGSearchNode
-**Purpose**: Search knowledge base intelligently
-- Multiple search strategies
-- Context-aware query enhancement
-- Duplicate removal and result ranking
-
-**Search Strategies**:
-- Primary query search
-- Library-specific searches
-- Analysis stage searches
-- Code example searches
-
-### 4. ResponseGeneratorNode
-**Purpose**: Generate comprehensive response
-- LLM-powered response generation
-- Context-aware formatting
-- Fallback response handling
-
-**Key Features**:
-- Single LLM call for efficiency
-- Rich context integration
-- Actionable recommendations
-
-## 🧪 Testing
-
-### Run Tests
-
-```bash
-cd pocketflow_persona
-python test_pocketflow.py
+**Agent Processing Summary:**
+- Repo Context: ✅ Loaded / ❌ Not found
+- Notebook Analysis: ✅ Loaded / ❌ Not found  
+- AI Analysis: ✅ Generated / ❌ Failed
+- Actions Taken: 2
+- Agent Actions: analyze_data → complete_analysis
+- Notebook: `/path/to/notebook.ipynb`
 ```
-
-### Test Coverage
-
-- ✅ Node-level unit tests
-- ✅ Flow integration tests
-- ✅ Configuration validation
-- ✅ Error handling tests
-- ✅ Performance benchmarks
-
-## 🔧 Development
-
-### Project Structure
-
-```
-pocketflow_persona/
-├── __init__.py          # Package initialization
-├── persona.py           # Main persona class
-├── nodes.py             # PocketFlow nodes
-├── flow.py              # Flow orchestration
-├── utils.py             # Utility functions
-├── config.py            # Configuration management
-├── test_pocketflow.py   # Test suite
-└── README.md            # Documentation
-```
-
-### Adding New Nodes
-
-```python
-from pocketflow import Node
-
-class NewNode(Node):
-    def exec(self, shared, **kwargs):
-        # Your node logic here
-        return {"success": True}
-```
-
-### Extending Search Strategies
-
-```python
-from pocketflow_persona.utils import RAGSearcher
-
-class CustomRAGSearcher(RAGSearcher):
-    def custom_search(self, query, **kwargs):
-        # Custom search logic
-        return {"success": True, "results": []}
-```
-
-## 📈 Performance Tips
-
-1. **Enable Result Caching**: Set `cache_results=True` in config
-2. **Limit Search Results**: Adjust `search_results_limit` based on needs
-3. **Use Notebook Context**: More context = better results
-4. **Optimize Queries**: Be specific about what you need
 
 ## 🐛 Troubleshooting
 
-### Common Issues
+### **Common Issues**
 
-**RAG System Not Available**
+**"No notebook files found"**
 ```python
-# Check RAG initialization
-from pocketflow_persona.utils import rag_searcher
-print(rag_searcher.rag_tool is not None)
+# Solutions:
+1. Use explicit path: "notebook: /full/path/to/file.ipynb"
+2. Check working directory
+3. Ensure .ipynb file exists
+4. Check file permissions
 ```
 
-**Notebook Path Issues**
+**"YAML parsing error"**
 ```python
-# Verify notebook path format
-query = "notebook: /full/path/to/notebook.ipynb - your question"
+# The agent automatically handles this with fallbacks
+# Check logs for details, but it should continue working
 ```
 
-**Performance Issues**
+**"AI model not available"**  
 ```python
-# Enable performance monitoring
-config = PocketFlowConfig(features={"enable_detailed_logging": True})
+# Check AWS Bedrock configuration
+# Agent will work in fallback mode with templates
 ```
+
+**"Configuration error"**
+```python
+# Verify Jupyter AI model configuration
+# Check AWS credentials and permissions
+```
+
+## 🔬 Technical Details
+
+### **Dependencies**
+- `agno`: AWS Bedrock integration and message handling
+- `pyyaml`: YAML parsing for decision responses  
+- `boto3`: AWS SDK for Bedrock client
+- `pathlib`: File path handling
+- `jupyter_ai`: Base persona framework
+
+### **File Structure**
+```
+data_science_persona/
+├── __init__.py           # Package exports
+├── persona.py            # Jupyter AI integration layer
+├── agent.py              # Core agent implementation
+├── pocketflow.py         # PocketFlow base classes
+├── file_reader_tool.py   # Notebook reading utilities
+└── README.md             # This documentation
+```
+
+### **System Requirements**
+- Python 3.9+
+- Jupyter AI 3.0+
+- AWS Bedrock access (or compatible model provider)
+- Sufficient memory for notebook content processing
+
+## 🚀 Performance Characteristics
+
+| Metric | Value | Description |
+|--------|--------|-------------|
+| **Decision Latency** | ~2-5s | Time for agent to choose action |
+| **Analysis Latency** | ~5-15s | Time for complete analysis |
+| **Memory Usage** | Low | Efficient context loading |
+| **Notebook Size Limit** | ~1MB | Recommended maximum notebook size |
+| **Context Window** | 200K+ tokens | With modern LLMs |
 
 ## 🤝 Contributing
 
-1. Fork the repository
-2. Create a feature branch
-3. Add tests for new functionality
-4. Ensure all tests pass
-5. Submit a pull request
+### **Adding New Actions**
+1. Update `DecideAction._create_decision_prompt()` with new action
+2. Add routing logic in `DecideAction.post()`
+3. Create corresponding analysis logic
+4. Add tests and documentation
+
+### **Extending Analysis Nodes**
+1. Inherit from `Node` base class
+2. Implement `prep()`, `exec()`, `post()` methods
+3. Add to agent flow connections
+4. Test with various inputs
+
+### **Improving Decision Making**
+1. Enhance the decision prompt with better context
+2. Add more sophisticated YAML parsing
+3. Include additional context sources
+4. Refine action categorization
 
 ## 📄 License
 
-This project is part of the Jupyter AI Personas package and follows the same license terms.
+Part of the Jupyter AI Personas package. See project license for details.
 
 ## 🙏 Acknowledgments
 
-- Built on the excellent [PocketFlow](https://github.com/the-pocket/PocketFlow) framework
-- Integrates existing RAG system from data_science_persona
-- Inspired by the original Agno-based context retrieval system
+- **PocketFlow**: Excellent flow orchestration framework
+- **agno**: Powerful agent framework for LLM integration  
+- **Jupyter AI**: Extensible AI platform for notebooks
+- **AWS Bedrock**: Reliable foundation model access
 
 ---
 
-**🎯 Ready to use? Start with the Quick Start guide above!**
+**🎯 Ready to analyze your data science projects with AI-powered insights? Get started with `@DataSciencePersona` in Jupyter AI!**

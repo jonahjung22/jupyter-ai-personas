@@ -13,5 +13,6 @@ from .pocketflow import Node, Flow, BaseNode
 
 # Import tools
 from .file_reader_tool import NotebookReaderTool
+from .autogluon_tool import AutoGluonTool
 
-__all__ = ["DataSciencePersona", "Node", "Flow", "BaseNode", "NotebookReaderTool"]
+__all__ = ["DataSciencePersona", "Node", "Flow", "BaseNode", "NotebookReaderTool", "AutoGluonTool"]
