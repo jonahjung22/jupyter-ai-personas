@@ -64,6 +64,7 @@ data_analytics = [
 
 data_science = [
     "agno",
+    "autogluon",
     "boto3",
     "pandas",
     "numpy",
