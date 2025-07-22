@@ -64,7 +64,6 @@ data_analytics = [
 
 data_science = [
     "agno",
-    "autogluon",
     "boto3",
     "pandas",
     "numpy",
@@ -76,7 +75,8 @@ data_science = [
     "scipy",
     "chromadb",
     "sentence-transformers",
-    "langchain-core"
+    "langchain-core",
+    "autogluon"
 ]
 
 all = ["jupyter-ai-personas[finance,emoji,software_team,data_analytics,pr_review,data_science]"]

@@ -102,7 +102,7 @@ class DecideAction(Node):
 
                 Based on this context, decide what action to take. You MUST respond in valid YAML format.
 
-                Choose ONE action from: analyze_data, generate_code, explain_concept, find_issues, create_visualization, optimize_model, debug_code, train_ml_model, hyperparameter_tuning, model_optimization, model_evaluation, feature_engineering, complete_analysis
+                Choose ONE action from: analyze_data, generate_code, explain_concept, find_issues, create_visualization, optimize_model, debug_code, train_ml_model, hyperparameter_tuning, model_optimization, model_evaluation, feature_engineering, complete_analysis, greeting
 
                 IMPORTANT: Respond with ONLY valid YAML. Do not include any other text.
 
@@ -194,7 +194,7 @@ class DecideAction(Node):
         
         # Extract action
         actions = ["analyze_data", "generate_code", "explain_concept", "find_issues", 
-                  "create_visualization", "optimize_model", "debug_code", "train_ml_model", "complete_analysis"]
+                  "create_visualization", "optimize_model", "debug_code", "train_ml_model", "complete_analysis", "greeting"]
         
         for action in actions:
             if action in text_lower:
@@ -249,8 +249,79 @@ class DecideAction(Node):
             return "complete"  # Route generate actions to complete node for now
         elif action == "explain_concept":
             return "complete"  # Route explain to complete node for now
+        elif action == "greeting":
+            return "greeting"  # Route to greeting handler
         else:
             return "complete"
+
+
+class GreetingNode(Node):
+    """Node for handling greetings and introductions"""
+    
+    def __init__(self, model_client=None):
+        super().__init__()
+        self.model_client = model_client
+    
+    def prep(self, shared):
+        """Prepare for greeting"""
+        return {
+            "user_query": shared.get("user_query", ""),
+            "history": shared.get("history", ""),
+            "previous_actions": shared.get("action_history", [])
+        }
+    
+    def exec(self, prep_res):
+        """Execute greeting response"""
+        try:
+            # Check if this is a simple greeting
+            query_lower = prep_res.get("user_query", "").lower()
+            greeting_words = ["hello", "hi", "hey", "good morning", "good afternoon", "good evening", "greetings"]
+            
+            is_greeting = any(word in query_lower for word in greeting_words)
+            
+            if is_greeting and len(prep_res.get("user_query", "").split()) <= 5:
+                # Simple greeting response
+                greeting_response = """# Hello! 👋 Welcome to the Data Science Assistant
+
+I'm your advanced data science agent, powered by sophisticated reasoning capabilities and ready to help you with:
+
+## 🔬 **What I Can Do:**
+- **Smart Data Analysis**: Analyze your datasets with targeted insights
+- **ML Model Training**: Automated machine learning with AutoGluon
+- **Code Generation**: Ready-to-use Python code for your projects
+- **Problem Solving**: Debug issues and optimize your analysis
+- **Context-Aware Help**: I read your notebooks and project context automatically
+
+## 🚀 **Getting Started:**
+Just tell me what you'd like to work on! For example:
+- "Analyze my sales data for trends"
+- "Help me train a classification model" 
+- "Debug my notebook: notebook_name.ipynb"
+- "Optimize my data preprocessing pipeline"
+
+I'll automatically read your repository context and notebook content to provide targeted, actionable recommendations.
+
+What would you like to explore today? 🎯"""
+                
+                return {"greeting": greeting_response, "success": True}
+            else:
+                # More complex query that happens to contain greeting words
+                return {"greeting": "", "success": False, "route_to_analysis": True}
+                
+        except Exception as e:
+            logger.error(f"❌ Greeting error: {e}")
+            return {"greeting": "Hello! I'm ready to help with your data science tasks.", "success": True}
+    
+    def post(self, shared, prep_res, exec_res):
+        """Handle greeting completion"""
+        if exec_res.get("route_to_analysis"):
+            # Route complex queries to complete analysis
+            return "complete"
+        else:
+            # Simple greeting completed
+            shared["final_response"] = exec_res.get("greeting", "Hello!")
+            shared["analysis_complete"] = True
+            return "end"
 
 
 class DataAnalysisNode(Node):
@@ -485,28 +556,63 @@ class MLTrainingNode(Node):
     
     def _heuristic_training_config(self, prep_res):
         """Heuristic training configuration extraction"""
+        # Look for actual data files in common locations
+        data_source = self._find_data_files()
+        
         return {
-            "success": True,
+            "success": bool(data_source),
             "training_type": "tabular",
             "target_column": "target",
-            "problem_type": "classification",
+            "problem_type": "classification", 
             "time_limit": 600,
-            "data_source": prep_res.get("notebook_path", ""),
-            "note": "Using heuristic configuration - please provide specific training parameters"
+            "data_source": data_source,
+            "note": "Using heuristic configuration - please provide specific training parameters" if data_source else "No data files found - please specify data source"
         }
     
+    def _find_data_files(self):
+        """Find data files in common locations"""
+        from pathlib import Path
+        
+        working_dir = Path.cwd()
+        data_extensions = ['.csv', '.json', '.xlsx', '.parquet', '.tsv']
+        search_paths = [
+            working_dir,
+            working_dir / 'data',
+            working_dir / 'datasets',
+            working_dir / 'files'
+        ]
+        
+        for search_path in search_paths:
+            if search_path.exists():
+                for ext in data_extensions:
+                    data_files = list(search_path.glob(f'*{ext}'))
+                    if data_files:
+                        return str(data_files[0])  # Return first found data file
+        
+        return ""  # No data files found
+    
     def _train_tabular_model(self, config):
-        """Train tabular model using AutoGluon"""
+        """Train tabular model using AutoGluon with enhanced validation"""
         try:
             # Extract data source
             data_source = config.get("data_source", "")
-            if not data_source:
+            target_column = config.get("target_column", "target")
+            
+            # Enhanced data source validation
+            if not data_source or data_source.strip() == "":
                 return {"success": False, "error": "No data source specified"}
             
-            # Train model
+            # Check for placeholder text
+            placeholders = ["[path to", "placeholder", "your_data", "data_file", "not specified", "no data source"]
+            if any(placeholder in data_source.lower() for placeholder in placeholders):
+                return {"success": False, "error": f"Invalid data source (placeholder detected): {data_source}"}
+            
+            logger.info(f"🚀 Training tabular model with data: {data_source}, target: {target_column}")
+            
+            # Train model using enhanced AutoGluon tool
             result = self.autogluon_tool.train_tabular_model(
                 data=data_source,
-                target_column=config.get("target_column", "target"),
+                target_column=target_column,
                 problem_type=config.get("problem_type"),
                 time_limit=config.get("time_limit", 600),
                 presets=config.get("presets", "best_quality")
@@ -817,6 +923,7 @@ class DataScienceAgent(Flow):
         
         # Initialize nodes
         self.decide_node = DecideAction(model_client=model_client)
+        self.greeting_node = GreetingNode(model_client=model_client)
         self.analyze_node = DataAnalysisNode(model_client=model_client)
         self.ml_training_node = MLTrainingNode(model_client=model_client)
         self.complete_node = CompleteAnalysisNode(model_client=model_client)
@@ -825,6 +932,7 @@ class DataScienceAgent(Flow):
         self.start(self.decide_node)
         
         # Connect decision node to action nodes
+        self.decide_node - "greeting" >> self.greeting_node
         self.decide_node - "analyze" >> self.analyze_node
         self.decide_node - "ml_training" >> self.ml_training_node
         self.decide_node - "complete" >> self.complete_node
@@ -832,12 +940,15 @@ class DataScienceAgent(Flow):
         # Connect analysis node back to decision (for iterative analysis)
         self.analyze_node - "decide" >> self.decide_node
         
+        # Connect greeting node to complete for complex queries
+        self.greeting_node - "complete" >> self.complete_node
+        
         # Connect ML training node back to decision or complete
         self.ml_training_node - "decide" >> self.decide_node
         self.ml_training_node - "complete" >> self.complete_node
         
-        logger.info("✅ DataScienceAgent initialized with decision-making and ML training capabilities")
-        logger.debug(f"Agent nodes: {[node.__class__.__name__ for node in [self.decide_node, self.analyze_node, self.ml_training_node, self.complete_node]]}")
+        logger.info("✅ DataScienceAgent initialized with decision-making, greeting handling, and ML training capabilities")
+        logger.debug(f"Agent nodes: {[node.__class__.__name__ for node in [self.decide_node, self.greeting_node, self.analyze_node, self.ml_training_node, self.complete_node]]}")
     
     def prep(self, shared):
         """Agent preparation - load context"""
