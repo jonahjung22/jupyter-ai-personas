@@ -102,7 +102,7 @@ class DecideAction(Node):
 
                 Based on this context, decide what action to take. You MUST respond in valid YAML format.
 
-                Choose ONE action from: analyze_data, generate_code, explain_concept, find_issues, create_visualization, optimize_model, debug_code, train_ml_model, complete_analysis
+                Choose ONE action from: analyze_data, generate_code, explain_concept, find_issues, create_visualization, optimize_model, debug_code, train_ml_model, hyperparameter_tuning, model_optimization, model_evaluation, feature_engineering, complete_analysis
 
                 IMPORTANT: Respond with ONLY valid YAML. Do not include any other text.
 
@@ -243,7 +243,7 @@ class DecideAction(Node):
         
         if action in ["analyze_data", "find_issues", "debug_code"]:
             return "analyze"
-        elif action == "train_ml_model":
+        elif action in ["train_ml_model", "hyperparameter_tuning", "model_optimization", "model_evaluation", "feature_engineering"]:
             return "ml_training"
         elif action in ["generate_code", "create_visualization", "optimize_model"]:
             return "complete"  # Route generate actions to complete node for now
@@ -417,21 +417,21 @@ class MLTrainingNode(Node):
             if self.model_client:
                 prompt = f"""Extract machine learning training configuration from this context:
 
-USER QUERY: {prep_res['user_query']}
-NOTEBOOK CONTENT: {prep_res['notebook_content'][:1000] if prep_res['notebook_content'] else 'No notebook content'}
-NOTEBOOK PATH: {prep_res['notebook_path']}
+                        USER QUERY: {prep_res['user_query']}
+                        NOTEBOOK CONTENT: {prep_res['notebook_content'][:1000] if prep_res['notebook_content'] else 'No notebook content'}
+                        NOTEBOOK PATH: {prep_res['notebook_path']}
 
-Based on this context, provide training configuration in YAML format:
+                        Based on this context, provide training configuration in YAML format:
 
-```yaml
-training_type: [tabular, multimodal, or timeseries]
-data_source: [path to data file or description]
-target_column: [name of target column]
-problem_type: [classification, regression, or forecasting]
-time_limit: [training time in seconds, default 600]
-```
+                        ```yaml
+                        training_type: [tabular, multimodal, or timeseries]
+                        data_source: [path to data file or description]
+                        target_column: [name of target column]
+                        problem_type: [classification, regression, or forecasting]
+                        time_limit: [training time in seconds, default 600]
+                        ```
 
-Your YAML response:"""
+                        Your YAML response:"""
                 
                 messages = [AgnoMessage(role="user", content=prompt)]
                 response = self.model_client.invoke(messages)
@@ -558,68 +558,68 @@ Your YAML response:"""
             "success": False,
             "training_result": f"""## 🤖 ML Training (Fallback Mode)
 
-**Query:** {prep_res['user_query']}
+            **Query:** {prep_res['user_query']}
 
-**Status:** AutoGluon not available - providing ML training guidance.
+            **Status:** AutoGluon not available - providing ML training guidance.
 
-## 🚀 AutoGluon Installation
-```bash
-# Install AutoGluon (choose based on your needs)
-pip install autogluon              # Full installation
-pip install autogluon.tabular      # Tabular only
-pip install autogluon.multimodal   # Multimodal only
-pip install autogluon.timeseries   # Time series only
-```
+            ## 🚀 AutoGluon Installation
+            ```bash
+            # Install AutoGluon (choose based on your needs)
+            pip install autogluon              # Full installation
+            pip install autogluon.tabular      # Tabular only
+            pip install autogluon.multimodal   # Multimodal only
+            pip install autogluon.timeseries   # Time series only
+            ```
 
-## 📊 Training Framework
+            ## 📊 Training Framework
 
-### 1. Tabular Data (Classification/Regression)
-```python
-from autogluon.tabular import TabularDataset, TabularPredictor
+            ### 1. Tabular Data (Classification/Regression)
+            ```python
+            from autogluon.tabular import TabularDataset, TabularPredictor
 
-# Load data
-train_data = TabularDataset('your_data.csv')
+            # Load data
+            train_data = TabularDataset('your_data.csv')
 
-# Train model
-predictor = TabularPredictor(label='target').fit(
-    train_data,
-    time_limit=600,
-    presets='best_quality'
-)
+            # Train model
+            predictor = TabularPredictor(label='target').fit(
+                train_data,
+                time_limit=600,
+                presets='best_quality'
+            )
 
-# Evaluate
-leaderboard = predictor.leaderboard()
-```
+            # Evaluate
+            leaderboard = predictor.leaderboard()
+            ```
 
-### 2. Multimodal Data (Text/Image/Mixed)
-```python
-from autogluon.multimodal import MultiModalPredictor
+            ### 2. Multimodal Data (Text/Image/Mixed)
+            ```python
+            from autogluon.multimodal import MultiModalPredictor
 
-# Train model
-predictor = MultiModalPredictor(label='target').fit(
-    train_data,
-    time_limit=600
-)
-```
+            # Train model
+            predictor = MultiModalPredictor(label='target').fit(
+                train_data,
+                time_limit=600
+            )
+            ```
 
-### 3. Time Series Forecasting
-```python
-from autogluon.timeseries import TimeSeriesPredictor
+            ### 3. Time Series Forecasting
+            ```python
+            from autogluon.timeseries import TimeSeriesPredictor
 
-# Train forecasting model
-predictor = TimeSeriesPredictor(
-    target='value',
-    prediction_length=24
-).fit(data, time_limit=600)
-```
+            # Train forecasting model
+            predictor = TimeSeriesPredictor(
+                target='value',
+                prediction_length=24
+            ).fit(data, time_limit=600)
+            ```
 
-## 💡 Next Steps
-1. Install AutoGluon using the commands above
-2. Prepare your data in the appropriate format
-3. Run the training code for your specific use case
-4. Use the trained model for predictions
+            ## 💡 Next Steps
+            1. Install AutoGluon using the commands above
+            2. Prepare your data in the appropriate format
+            3. Run the training code for your specific use case
+            4. Use the trained model for predictions
 
-*Note: This is a fallback response. Install AutoGluon for automated ML training.*""",
+            * Note: This is a fallback response. Install AutoGluon for automated ML training.*""",
             "installation_required": True
         }
     
