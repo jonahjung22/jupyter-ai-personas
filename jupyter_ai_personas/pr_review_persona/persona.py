@@ -1,4 +1,6 @@
 import os
+import re
+import logging
 from jupyter_ai.personas.base_persona import BasePersona, PersonaDefaults
 from jupyterlab_chat.models import Message
 from jupyter_ai.history import YChatHistory
@@ -12,11 +14,19 @@ from agno.tools.python import PythonTools
 from agno.team.team import Team
 from .fetch_ci_failures import fetch_ci_failures
 from .template import PRPersonaVariables, PR_PROMPT_TEMPLATE
+from .pr_comment_tool import create_inline_pr_comments
+
+logger = logging.getLogger(__name__)
 
 session = boto3.Session()
 
 
 class PRReviewPersona(BasePersona):
+    # Heartbeat intervals
+    FIRST_HEARTBEAT_DELAY = 120
+    SECOND_HEARTBEAT_DELAY = 180
+    THIRD_HEARTBEAT_DELAY = 300
+    
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -30,7 +40,7 @@ class PRReviewPersona(BasePersona):
         )
 
     def initialize_team(self, system_prompt):
-        model_id = self.config.lm_provider_params["model_id"]
+        model_id = self.config_manager.lm_provider_params["model_id"]
         github_token = os.getenv("GITHUB_ACCESS_TOKEN")
         if not github_token:
             raise ValueError(
@@ -58,9 +68,14 @@ class PRReviewPersona(BasePersona):
                 "   - Complexity and readability",
                 "   - Performance implications",
                 "   - Error handling and edge cases",
+                "4. MUST create inline comments for issues found:",
+                "   - For each code issue, IMMEDIATELY call create_inline_pr_comments",
+                "   - Use exact file paths from PR changes",
+                "   - Use line numbers from the diff",
+                "   - Do not just mention issues - CREATE the comments",
+                "   - Use the exact format: [{\"path\": \"file.py\", \"position\": 10, \"body\": \"issue description\"}]",
             ],
             tools=[
-                PythonTools(),
                 GithubTools(
                     get_pull_requests=True,
                     get_pull_request_changes=True,
@@ -68,6 +83,7 @@ class PRReviewPersona(BasePersona):
                     get_directory_content=True,
                 ),
                 fetch_ci_failures,
+                create_inline_pr_comments,
                 ReasoningTools(add_instructions=True, think=True, analyze=True),
             ],
         )
@@ -83,7 +99,7 @@ class PRReviewPersona(BasePersona):
                 "3. Verify return value documentation",
                 "4. Check for documentation consistency",
             ],
-            tools=[PythonTools()],
+            tools=[],
             markdown=True,
         )
 
@@ -99,7 +115,6 @@ class PRReviewPersona(BasePersona):
                 "4. Check for insecure direct object references",
             ],
             tools=[
-                PythonTools(),
                 ReasoningTools(
                     add_instructions=True,
                     think=True,
@@ -117,15 +132,16 @@ class PRReviewPersona(BasePersona):
                 "Monitor and analyze GitHub repository activities and changes",
                 "Fetch and process pull request data",
                 "Analyze code changes and provide structured feedback",
-                "Create a comment on a specific line of a specific file in a pull request.",
+                "Identify issues that need inline comments:",
+                "   - Note specific code issues with file path and line number",
+                "   - Report findings to the coordinator for comment posting",
                 "Note: Requires a valid GitHub personal access token in GITHUB_ACCESS_TOKEN environment variable",
             ],
             tools=[
                 GithubTools(
-                    create_pull_request_comment=True,
                     get_pull_requests=True,
                     get_pull_request_changes=True,
-                )
+                ),
             ],
             markdown=True,
         )
@@ -141,6 +157,7 @@ class PRReviewPersona(BasePersona):
                 "   - Review code structure and patterns",
                 "   - Check CI status and analyze any failures",
                 "   - Keep analysis focused and concise",
+                "   - Always create inline comments:",
                 "2. Documentation Specialist:",
                 "   - Review documentation completeness",
                 "   - Focus on critical documentation issues",
@@ -148,9 +165,14 @@ class PRReviewPersona(BasePersona):
                 "   - Check for security vulnerabilities",
                 "   - Prioritize high-impact issues",
                 "4. GitHub Specialist:",
-                "   - Manage repository operations",
-                "   - Keep PR metadata minimal",
-                "5. Synthesize findings:",
+                "   - FIRST ACTION: Call get_pull_request_changes() with actual repo URL and PR number",
+                "   - VERIFY: Show actual PR diff data in response",
+                "   - NEVER proceed without real GitHub data",
+                "5. CRITICAL - Code Quality Analyst handles inline comments:",
+                "   - Code Quality Analyst will create inline comments for issues",
+                "   - Other team members should report issues to Code Quality Analyst",
+                "   - Focus on identifying and reporting actionable issues",
+                "6. Synthesize findings:",
                 "   - Combine key insights from all members",
                 "   - Focus on actionable items",
                 "   - Keep responses concise",
@@ -160,9 +182,9 @@ class PRReviewPersona(BasePersona):
             show_members_responses=True,
             enable_agentic_context=True,
             add_datetime_to_instructions=True,
+            show_tool_calls=False,
             tools=[
                 GithubTools(
-                    create_pull_request_comment=True,
                     get_pull_requests=True,
                     get_pull_request_changes=True,
                 ),
@@ -173,8 +195,16 @@ class PRReviewPersona(BasePersona):
         return pr_review_team
 
     async def process_message(self, message: Message):
-        provider_name = self.config.lm_provider.name
-        model_id = self.config.lm_provider_params["model_id"]
+
+        # Send initial acknowledgment message
+        pr_match = re.search(r'github\.com/([^/\s]+/[^/\s]+)/pull/(\d+)', message.body)
+        if pr_match:
+            repo_name = pr_match.group(1)
+            pr_number = pr_match.group(2)
+            self.send_message(f"Got your request. Processing PR #{pr_number} from repo: {repo_name}")
+  
+        provider_name = self.config_manager.lm_provider.name
+        model_id = self.config_manager.lm_provider_params["model_id"]
 
         history = YChatHistory(ychat=self.ychat, k=2)
         messages = await history.aget_messages()
@@ -200,14 +230,54 @@ class PRReviewPersona(BasePersona):
 
         try:
             team = self.initialize_team(system_prompt)
-            response = team.run(
-                message.body,
-                stream=False,
-                stream_intermediate_steps=False,
-                show_full_reasoning=False,
-            )
 
-            self.send_message(response.content)
+            # Add periodic heartbeat messages during processing
+            import asyncio
+            import threading
+
+            # Flag to stop heartbeat when done
+            processing = asyncio.Event()
+            processing.set()
+
+            async def heartbeat():
+                try:
+                    await asyncio.sleep(self.FIRST_HEARTBEAT_DELAY)
+                    if processing.is_set():
+                        self.send_message("⏳ Still processing large PR...")
+                        await asyncio.sleep(self.SECOND_HEARTBEAT_DELAY)
+                        if processing.is_set():
+                            self.send_message("⏳ Almost done...")
+                            await asyncio.sleep(self.THIRD_HEARTBEAT_DELAY)
+                            if processing.is_set():
+                                self.send_message(
+                                    "⏳ Taking longer than expected, please wait..."
+                                )
+                except asyncio.CancelledError:
+                    # Handle task cancellation gracefully
+                    logger.debug("Heartbeat task cancelled")
+                    raise  # Re-raise to properly terminate the task
+
+            heartbeat_task = asyncio.create_task(heartbeat())
+
+            try:
+                response = await asyncio.to_thread(
+                    team.run,
+                    message.body,
+                    stream=False,
+                    stream_intermediate_steps=False,
+                    show_full_reasoning=False,
+                )
+
+                # Stop heartbeat
+                processing.clear()
+                heartbeat_task.cancel()
+
+                self.send_message(response.content)
+
+            except Exception as run_error:
+                processing.clear()
+                heartbeat_task.cancel()
+                raise run_error
 
         except ValueError as e:
             error_message = f"Configuration Error: {str(e)}\nThis may be due to missing or invalid environment variables, model configuration, or input parameters."
