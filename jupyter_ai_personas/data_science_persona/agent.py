@@ -482,27 +482,57 @@ class MLTrainingNode(Node):
             return self._fallback_ml_training(prep_res)
     
     def _extract_training_config(self, prep_res):
-        """Extract training configuration from context"""
+        """Extract training configuration from notebook content"""
         try:
-            # Use LLM to extract training configuration
+            # First, try to extract data directly from notebook content
+            notebook_data = self._extract_data_from_notebook(prep_res['notebook_content'])
+            
+            if notebook_data["success"]:
+                # Use extracted data directly
+                return {
+                    "success": True,
+                    "training_type": "tabular",
+                    "data_source": notebook_data["dataframe"],  # Pass DataFrame directly
+                    "target_column": notebook_data["target_column"],
+                    "problem_type": notebook_data["problem_type"],
+                    "time_limit": 600,
+                    "data_extraction_method": "notebook_content"
+                }
+            
+            # Fallback: Use LLM to extract training configuration
             if self.model_client:
-                prompt = f"""Extract machine learning training configuration from this context:
+                prompt = f"""You are analyzing a Jupyter notebook to extract ML training configuration. 
 
-                        USER QUERY: {prep_res['user_query']}
-                        NOTEBOOK CONTENT: {prep_res['notebook_content'][:1000] if prep_res['notebook_content'] else 'No notebook content'}
-                        NOTEBOOK PATH: {prep_res['notebook_path']}
+USER QUERY: {prep_res['user_query']}
 
-                        Based on this context, provide training configuration in YAML format:
+NOTEBOOK CONTENT:
+{prep_res['notebook_content'][:3000] if prep_res['notebook_content'] else 'No notebook content available'}
 
-                        ```yaml
-                        training_type: [tabular, multimodal, or timeseries]
-                        data_source: [path to data file or description]
-                        target_column: [name of target column]
-                        problem_type: [classification, regression, or forecasting]
-                        time_limit: [training time in seconds, default 600]
-                        ```
+CRITICAL INSTRUCTIONS:
+1. Look for ACTUAL DataFrame variable names (df, data, dataset, etc.) mentioned in the notebook
+2. Look for ACTUAL column names shown in data previews, df.head(), df.info(), etc.
+3. Look for target/label columns used in machine learning code
+4. If you cannot find specific information, respond with "data_not_found" instead of making up placeholders
 
-                        Your YAML response:"""
+WHAT TO LOOK FOR:
+- DataFrame variables: df = pd.read_csv(...), data = ..., etc.
+- Column names from df.head(), df.columns, df.info() outputs
+- Target variables: y = df['column_name'], model.fit(X, y), etc.
+- Problem type indicators: classification, regression, predict, forecast
+
+Respond in VALID YAML format:
+
+```yaml
+success: [true if you found actual data info, false if not]
+data_variable: [actual variable name like 'df', 'data' or 'data_not_found']
+target_column: [actual column name or 'data_not_found']
+problem_type: [classification/regression/forecasting or 'unknown']
+confidence: [high/medium/low]
+```
+
+Do NOT use generic placeholders like 'target', 'your_data', 'placeholder'. Use actual names from the notebook or 'data_not_found'.
+
+YAML response:"""
                 
                 messages = [AgnoMessage(role="user", content=prompt)]
                 response = self.model_client.invoke(messages)
@@ -521,8 +551,28 @@ class MLTrainingNode(Node):
                 
                 # Parse configuration
                 config = self._parse_training_config(config_text)
-                if config:
-                    return {"success": True, **config}
+                if config and config.get("success"):
+                    # Convert data_variable to data_source for compatibility
+                    data_variable = config.get("data_variable", "")
+                    if data_variable != "data_not_found":
+                        # For now, we'll create a message indicating we found the variable name
+                        # but need the actual data - this is where we'd integrate with notebook execution
+                        return {
+                            "success": False,  # Set to False until we can access actual data
+                            "training_type": "tabular",
+                            "data_source": f"notebook_variable_{data_variable}",
+                            "target_column": config.get("target_column", ""),
+                            "problem_type": config.get("problem_type", "classification"),
+                            "time_limit": 600,
+                            "error": f"Found data variable '{data_variable}' in notebook but cannot access actual DataFrame yet. Feature under development.",
+                            "found_info": config
+                        }
+                    else:
+                        return {
+                            "success": False,
+                            "error": "Could not find actual data variables or column names in notebook content",
+                            "suggestion": "Please ensure your notebook contains data loading code with clear variable names"
+                        }
             
             # Fallback to heuristic extraction
             return self._heuristic_training_config(prep_res)
@@ -544,15 +594,187 @@ class MLTrainingNode(Node):
             
             config = yaml.safe_load(yaml_content)
             
-            # Validate required fields
-            required_fields = ["training_type", "target_column"]
-            if all(field in config for field in required_fields):
-                return config
+            # Validate that we got a proper config
+            if isinstance(config, dict):
+                # Check if LLM found actual data or responded with "data_not_found"
+                success = config.get("success", False)
+                data_variable = config.get("data_variable", "")
+                target_column = config.get("target_column", "")
+                
+                # Consider it successful if we found actual data info (not placeholders)
+                if success and data_variable not in ["data_not_found", "", None] and target_column not in ["data_not_found", "", None]:
+                    return config
+                elif success:
+                    # Partial success - found some info but not complete
+                    return config
+                else:
+                    logger.warning("LLM could not find data information in notebook")
+                    return {"success": False, "error": "No data information found"}
             
         except Exception as e:
             logger.warning(f"Config parsing error: {e}")
+            logger.debug(f"YAML content: {yaml_content}")
         
         return None
+    
+    def _extract_data_from_notebook(self, notebook_content):
+        """Extract actual DataFrames from notebook content string"""
+        try:
+            import pandas as pd
+            import re
+            import io
+            from io import StringIO
+            
+            if not notebook_content:
+                return {"success": False, "error": "No notebook content available"}
+            
+            # Parse notebook content to find DataFrame outputs
+            dataframes = {}
+            target_columns = []
+            
+            # Look for DataFrame outputs (df.head(), df.info(), df.shape, etc.)
+            # Pattern to find cell outputs with tabular data
+            cell_pattern = r"--- Cell \d+ \(CODE\) ---.*?SOURCE:\n(.*?)(?=OUTPUTS:|--- Cell|\Z)"
+            output_pattern = r"OUTPUTS:\s*Output \d+ \([^)]+\):\s*(.*?)(?=\n\s*Output|\n--- Cell|\Z)"
+            
+            cells = re.findall(cell_pattern, notebook_content, re.DOTALL)
+            
+            for i, cell_source in enumerate(cells):
+                # Look for DataFrame variable assignments
+                df_assignments = re.findall(r"(\w+)\s*=.*?pd\.read_\w+\(", cell_source)
+                
+                # Look for df.head() or similar display commands
+                display_commands = re.findall(r"(\w+)\.(?:head|tail|info|describe|shape|columns)", cell_source)
+                
+                # Combine variable names
+                variable_names = list(set(df_assignments + display_commands))
+                
+                # Extract target column references
+                target_refs = re.findall(r"(?:y|target|label)\s*=\s*\w+\[['\"](.*?)['\"]\]", cell_source)
+                target_columns.extend(target_refs)
+            
+            # Look for actual DataFrame output data in the outputs
+            outputs = re.findall(output_pattern, notebook_content, re.DOTALL)
+            
+            for output in outputs:
+                # Try to parse tabular data from output
+                dataframe = self._parse_tabular_output(output.strip())
+                if dataframe is not None:
+                    # Assign to first found variable name or default to 'df'
+                    var_name = variable_names[0] if variable_names else 'df'
+                    dataframes[var_name] = dataframe
+                    break  # Use first successfully parsed DataFrame
+            
+            if dataframes:
+                # Get the first DataFrame
+                df_name, df = next(iter(dataframes.items()))
+                
+                # Determine target column
+                target_col = None
+                if target_columns:
+                    # Use first target column that exists in the DataFrame
+                    for col in target_columns:
+                        if col in df.columns:
+                            target_col = col
+                            break
+                
+                # If no explicit target found, try to infer
+                if not target_col:
+                    target_col = self._infer_target_column_from_df(df)
+                
+                # Determine problem type
+                problem_type = "classification"
+                if target_col and target_col in df.columns:
+                    if df[target_col].dtype in ['float64', 'float32', 'int64', 'int32']:
+                        # Check if it looks like regression (many unique values)
+                        unique_ratio = len(df[target_col].unique()) / len(df)
+                        if unique_ratio > 0.1:  # More than 10% unique values suggests regression
+                            problem_type = "regression"
+                
+                return {
+                    "success": True,
+                    "dataframe": df,
+                    "target_column": target_col,
+                    "problem_type": problem_type,
+                    "variable_name": df_name,
+                    "dataframe_info": {
+                        "shape": df.shape,
+                        "columns": list(df.columns),
+                        "dtypes": df.dtypes.to_dict()
+                    }
+                }
+            
+            return {"success": False, "error": "No DataFrame data found in notebook outputs"}
+            
+        except Exception as e:
+            logger.error(f"Data extraction error: {e}")
+            return {"success": False, "error": str(e)}
+    
+    def _parse_tabular_output(self, output_text):
+        """Parse tabular output text to reconstruct DataFrame"""
+        try:
+            import pandas as pd
+            from io import StringIO
+            
+            lines = output_text.strip().split('\n')
+            
+            # Look for DataFrame-like output patterns
+            # Pattern 1: Standard df.head() output with index and columns
+            if any('  ' in line and not line.strip().startswith('[') for line in lines):
+                # Try to parse as whitespace-separated tabular data
+                # Remove common DataFrame artifacts
+                clean_lines = []
+                for line in lines:
+                    line = line.strip()
+                    # Skip empty lines and non-data lines
+                    if line and not line.startswith('[') and not line.startswith('...'):
+                        clean_lines.append(line)
+                
+                if len(clean_lines) >= 2:  # At least header + one data row
+                    try:
+                        # Try parsing with pandas
+                        data_text = '\n'.join(clean_lines)
+                        df = pd.read_csv(StringIO(data_text), sep=r'\s+', engine='python')
+                        
+                        # Basic validation
+                        if len(df) > 0 and len(df.columns) > 1:
+                            return df
+                    except Exception:
+                        pass
+            
+            # Pattern 2: CSV-like output
+            if ',' in output_text and '\n' in output_text:
+                try:
+                    df = pd.read_csv(StringIO(output_text))
+                    if len(df) > 0 and len(df.columns) > 1:
+                        return df
+                except Exception:
+                    pass
+            
+            return None
+            
+        except Exception as e:
+            logger.debug(f"Tabular output parsing error: {e}")
+            return None
+    
+    def _infer_target_column_from_df(self, df):
+        """Infer likely target column from DataFrame structure"""
+        # Common target column names
+        target_names = ['target', 'label', 'y', 'class', 'category', 'outcome', 'result', 'price', 'value']
+        
+        # Check for exact matches
+        for col in df.columns:
+            if col.lower() in target_names:
+                return col
+        
+        # Check for partial matches
+        for col in df.columns:
+            for target_name in target_names:
+                if target_name in col.lower():
+                    return col
+        
+        # Default: use last column (common ML convention)
+        return df.columns[-1] if len(df.columns) > 0 else None
     
     def _heuristic_training_config(self, prep_res):
         """Heuristic training configuration extraction"""

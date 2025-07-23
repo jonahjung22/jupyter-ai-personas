@@ -68,6 +68,51 @@ class AutoGluonTool:
         
         return availability
     
+    def _validate_training_inputs(self, data, target_column) -> Dict[str, Any]:
+        """Validate training inputs before model training"""
+        try:
+            import pandas as pd
+            from pathlib import Path
+            
+            # Check if data is None or empty
+            if data is None:
+                return {"valid": False, "error": "Data source is None"}
+            
+            # Handle different data types
+            if isinstance(data, pd.DataFrame):
+                # Data is already a DataFrame - validate it
+                if data.empty:
+                    return {"valid": False, "error": "DataFrame is empty"}
+                if len(data) < 2:
+                    return {"valid": False, "error": f"Insufficient data: only {len(data)} rows (minimum 2 required)"}
+                return {"valid": True, "error": None}
+            
+            elif isinstance(data, (str, Path)):
+                # Data is a file path - validate it exists and is readable
+                data_path = Path(str(data))
+                
+                # Check for placeholder strings
+                placeholder_indicators = ["not_specified", "TBD", "placeholder", "[path to", "your_data"]
+                if any(indicator in str(data).lower() for indicator in placeholder_indicators):
+                    return {"valid": False, "error": f"Invalid data source (placeholder detected): {data}"}
+                
+                # Check if file exists
+                if not data_path.exists():
+                    return {"valid": False, "error": f"Data file not found: {data_path}"}
+                
+                # Check file extension
+                valid_extensions = ['.csv', '.json', '.xlsx', '.parquet', '.tsv', '.txt']
+                if data_path.suffix.lower() not in valid_extensions:
+                    return {"valid": False, "error": f"Unsupported file type: {data_path.suffix}. Supported: {valid_extensions}"}
+                
+                return {"valid": True, "error": None}
+            
+            else:
+                return {"valid": False, "error": f"Invalid data type: {type(data)}. Expected DataFrame, file path, or string"}
+                
+        except Exception as e:
+            return {"valid": False, "error": f"Validation error: {str(e)}"}
+    
     def get_status(self) -> Dict[str, Any]:
         """Get tool status and installation information."""
         return {
@@ -100,6 +145,14 @@ class AutoGluonTool:
             return {
                 "success": False,
                 "error": "AutoGluon tabular not available. Install with: pip install autogluon.tabular"
+            }
+        
+        # Enhanced input validation
+        validation_result = self._validate_training_inputs(data, target_column)
+        if not validation_result["valid"]:
+            return {
+                "success": False,
+                "error": validation_result["error"]
             }
         
         try:
