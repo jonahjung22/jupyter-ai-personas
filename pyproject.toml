@@ -79,14 +79,7 @@ data_science = [
     "autogluon"
 ]
 
-context_retriever = [
-    "agno",
-    "boto3",
-    "langchain",
-    "langchain-core"
-]
-
-all = ["jupyter-ai-personas[finance,emoji,software_team,data_analytics,pr_review,data_science,context_retriever]"]
+all = ["jupyter-ai-personas[finance,emoji,software_team,data_analytics,pr_review,data_science]"]
 
 [build-system]
 requires = ["hatchling"]
@@ -99,4 +92,3 @@ software_team_persona = "jupyter_ai_personas.software_team_persona.persona:Softw
 data_analytics_persona = "jupyter_ai_personas.data_analytics_persona.persona:DataAnalyticsTeam"
 pr_review_persona = "jupyter_ai_personas.pr_review_persona.persona:PRReviewPersona"
 data_science_persona = "jupyter_ai_personas.data_science_persona.persona:DataSciencePersona"
-context_retrieval_persona = "jupyter_ai_personas.context_retrieval_persona.context_retrieval_persona:ContextRetrievalPersona"

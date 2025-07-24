@@ -45,6 +45,8 @@ class DataSciencePersona(BasePersona):
         super().__init__(*args, **kwargs)
         self.agent = None
         self._initialization_attempted = False
+        self._persistent_notebook_path = None
+        self._persistent_notebook_content = None
     
     @property
     def defaults(self):
@@ -173,6 +175,9 @@ class DataSciencePersona(BasePersona):
     async def _prepare_context_info(self, message: Message) -> Dict[str, Any]:
         """Prepare context information for the agent"""
         try:
+            # Check for new notebook path in the message
+            self._check_and_update_notebook_path(message.body)
+            
             # Get chat history
             history = YChatHistory(ychat=self.ychat, k=2)
             messages = await history.aget_messages()
@@ -184,11 +189,19 @@ class DataSciencePersona(BasePersona):
                     role = "User" if isinstance(msg, HumanMessage) else "Assistant"
                     history_text += f"{role}: {msg.content[:100]}...\n"
             
-            return {
+            context_info = {
                 "history": history_text,
                 "timestamp": datetime.now().isoformat(),
-                "current_message": message.body  # Now using the message parameter
+                "current_message": message.body
             }
+            
+            # Add persistent notebook information if available
+            if self._persistent_notebook_path and self._persistent_notebook_content:
+                context_info["persistent_notebook_path"] = self._persistent_notebook_path
+                context_info["persistent_notebook_content"] = self._persistent_notebook_content
+                logger.info(f"🔄 Using persistent notebook: {self._persistent_notebook_path}")
+            
+            return context_info
             
         except Exception as e:
             logger.error(f"Context preparation error: {e}")
@@ -201,7 +214,14 @@ class DataSciencePersona(BasePersona):
             logger.info(f"   Success: {result.get('success', False)}")
             logger.info(f"   Context Loaded: {result.get('context_loaded', False)}")
             logger.info(f"   Notebook Loaded: {result.get('notebook_loaded', False)}")
-            logger.info(f"   Notebook Path: {result.get('notebook_path', 'None')}")
+            
+            # Only log notebook path if it was explicitly provided
+            notebook_path = result.get('notebook_path', '')
+            if notebook_path:
+                logger.info(f"   Notebook Path: {notebook_path}")
+            else:
+                logger.info(f"   Notebook Path: None (auto-discovered notebook not shown)")
+                
             logger.info(f"   Actions Taken: {len(result.get('action_history', []))}")
             logger.info(f"   Action History: {result.get('action_history', [])}")
             

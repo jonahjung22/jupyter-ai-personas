@@ -283,25 +283,25 @@ class GreetingNode(Node):
                 # Simple greeting response
                 greeting_response = """# Hello! 👋 Welcome to the Data Science Assistant
 
-I'm your advanced data science agent, powered by sophisticated reasoning capabilities and ready to help you with:
+                                    I'm your advanced data science agent, powered by sophisticated reasoning capabilities and ready to help you with:
 
-## 🔬 **What I Can Do:**
-- **Smart Data Analysis**: Analyze your datasets with targeted insights
-- **ML Model Training**: Automated machine learning with AutoGluon
-- **Code Generation**: Ready-to-use Python code for your projects
-- **Problem Solving**: Debug issues and optimize your analysis
-- **Context-Aware Help**: I read your notebooks and project context automatically
+                                    ## 🔬 **What I Can Do:**
+                                    - **Smart Data Analysis**: Analyze your datasets with targeted insights
+                                    - **ML Model Training**: Automated machine learning with AutoGluon
+                                    - **Code Generation**: Ready-to-use Python code for your projects
+                                    - **Problem Solving**: Debug issues and optimize your analysis
+                                    - **Context-Aware Help**: I read your notebooks and project context automatically
 
-## 🚀 **Getting Started:**
-Just tell me what you'd like to work on! For example:
-- "Analyze my sales data for trends"
-- "Help me train a classification model" 
-- "Debug my notebook: notebook_name.ipynb"
-- "Optimize my data preprocessing pipeline"
+                                    ## 🚀 **Getting Started:**
+                                    Just tell me what you'd like to work on! For example:
+                                    - "Analyze my sales data for trends"
+                                    - "Help me train a classification model" 
+                                    - "Debug my notebook: notebook_name.ipynb"
+                                    - "Optimize my data preprocessing pipeline"
 
-I'll automatically read your repository context and notebook content to provide targeted, actionable recommendations.
+                                    I'll automatically read your repository context and notebook content to provide targeted, actionable recommendations.
 
-What would you like to explore today? 🎯"""
+                                    What would you like to explore today? 🎯"""
                 
                 return {"greeting": greeting_response, "success": True}
             else:
@@ -503,36 +503,36 @@ class MLTrainingNode(Node):
             if self.model_client:
                 prompt = f"""You are analyzing a Jupyter notebook to extract ML training configuration. 
 
-USER QUERY: {prep_res['user_query']}
+                            USER QUERY: {prep_res['user_query']}
 
-NOTEBOOK CONTENT:
-{prep_res['notebook_content'][:3000] if prep_res['notebook_content'] else 'No notebook content available'}
+                            NOTEBOOK CONTENT:
+                            {prep_res['notebook_content'][:3000] if prep_res['notebook_content'] else 'No notebook content available'}
 
-CRITICAL INSTRUCTIONS:
-1. Look for ACTUAL DataFrame variable names (df, data, dataset, etc.) mentioned in the notebook
-2. Look for ACTUAL column names shown in data previews, df.head(), df.info(), etc.
-3. Look for target/label columns used in machine learning code
-4. If you cannot find specific information, respond with "data_not_found" instead of making up placeholders
+                            CRITICAL INSTRUCTIONS:
+                            1. Look for ACTUAL DataFrame variable names (df, data, dataset, etc.) mentioned in the notebook
+                            2. Look for ACTUAL column names shown in data previews, df.head(), df.info(), etc.
+                            3. Look for target/label columns used in machine learning code
+                            4. If you cannot find specific information, respond with "data_not_found" instead of making up placeholders
 
-WHAT TO LOOK FOR:
-- DataFrame variables: df = pd.read_csv(...), data = ..., etc.
-- Column names from df.head(), df.columns, df.info() outputs
-- Target variables: y = df['column_name'], model.fit(X, y), etc.
-- Problem type indicators: classification, regression, predict, forecast
+                            WHAT TO LOOK FOR:
+                            - DataFrame variables: df = pd.read_csv(...), data = ..., etc.
+                            - Column names from df.head(), df.columns, df.info() outputs
+                            - Target variables: y = df['column_name'], model.fit(X, y), etc.
+                            - Problem type indicators: classification, regression, predict, forecast
 
-Respond in VALID YAML format:
+                            Respond in VALID YAML format:
 
-```yaml
-success: [true if you found actual data info, false if not]
-data_variable: [actual variable name like 'df', 'data' or 'data_not_found']
-target_column: [actual column name or 'data_not_found']
-problem_type: [classification/regression/forecasting or 'unknown']
-confidence: [high/medium/low]
-```
+                            ```yaml
+                            success: [true if you found actual data info, false if not]
+                            data_variable: [actual variable name like 'df', 'data' or 'data_not_found']
+                            target_column: [actual column name or 'data_not_found']
+                            problem_type: [classification/regression/forecasting or 'unknown']
+                            confidence: [high/medium/low]
+                            ```
 
-Do NOT use generic placeholders like 'target', 'your_data', 'placeholder'. Use actual names from the notebook or 'data_not_found'.
+                            Do NOT use generic placeholders like 'target', 'your_data', 'placeholder'. Use actual names from the notebook or 'data_not_found'.
 
-YAML response:"""
+                            YAML response:"""
                 
                 messages = [AgnoMessage(role="user", content=prompt)]
                 response = self.model_client.invoke(messages)
@@ -1142,6 +1142,8 @@ class DataScienceAgent(Flow):
     def __init__(self, model_client=None):
         super().__init__()
         self.model_client = model_client
+        self._current_notebook_path = None
+        self._current_notebook_content = None
         
         # Initialize nodes
         self.decide_node = DecideAction(model_client=model_client)
@@ -1187,13 +1189,14 @@ class DataScienceAgent(Flow):
         user_query = shared.get("user_query", "")
         logger.debug(f"User query for notebook extraction: {user_query}")
         
-        notebook_content, notebook_path = self._load_notebook_content(user_query)
+        notebook_content, notebook_path, is_explicit = self._load_notebook_content(user_query)
         shared["notebook_content"] = notebook_content
         shared["notebook_path"] = notebook_path
+        shared["notebook_explicit"] = is_explicit
         
         logger.info(f"📓 Notebook: {'✅ Loaded' if notebook_content else '❌ Not found'}")
         if notebook_path:
-            logger.info(f"📁 Notebook path: {notebook_path}")
+            logger.info(f"📁 Notebook path: {notebook_path} ({'explicit' if is_explicit else 'auto-discovered'})")
         
         # Initialize tracking
         shared["action_history"] = []
@@ -1220,35 +1223,52 @@ class DataScienceAgent(Flow):
         return ""
     
     def _load_notebook_content(self, user_query):
-        """Load notebook content based on user query"""
+        """Load notebook content based on user query with persistence"""
         try:
             logger.debug(f"Loading notebook content for query: {user_query[:50]}...")
-            notebook_tool = NotebookReaderTool()
             
             # Extract notebook path from query or find default
-            notebook_path = self._extract_notebook_path(user_query)
-            logger.debug(f"Extracted notebook path: {notebook_path}")
+            notebook_info = self._extract_notebook_path(user_query)
+            logger.debug(f"Extracted notebook info: {notebook_info}")
             
-            if notebook_path:
-                logger.info(f"📖 Reading notebook: {notebook_path}")
+            if not notebook_info:
+                if self._current_notebook_path and self._current_notebook_content:
+                    # Use cached notebook if no new path provided
+                    logger.info(f"🔄 Using cached notebook: {self._current_notebook_path}")
+                    return self._current_notebook_content, self._current_notebook_path, False
+                else:
+                    logger.warning("❌ No notebook path found and no cached content")
+                    return "", "", False
+            
+            notebook_path = notebook_info["path"]
+            is_explicit = notebook_info["explicit"]
+            
+            # Check if we have a new notebook path
+            if str(notebook_path) != self._current_notebook_path:
+                logger.info(f"📖 Loading {'explicit' if is_explicit else 'auto-discovered'} notebook: {notebook_path}")
+                notebook_tool = NotebookReaderTool()
                 content = notebook_tool.extract_rag_context(str(notebook_path))
                 logger.debug(f"Notebook content length: {len(content)} characters")
                 
                 if content.startswith("Error:"):
                     logger.error(f"❌ Notebook reading failed: {content}")
-                    return "", str(notebook_path)
+                    return "", str(notebook_path), is_explicit
                 else:
-                    logger.info(f"✅ Successfully read notebook: {notebook_path}")
-                    return content, str(notebook_path)
+                    # Cache the notebook content
+                    self._current_notebook_path = str(notebook_path)
+                    self._current_notebook_content = content
+                    logger.info(f"✅ Successfully loaded and cached notebook: {notebook_path}")
+                    return content, str(notebook_path), is_explicit
             else:
-                logger.warning("❌ No notebook path found")
-                return "", ""
+                # Same path as before, use cached content
+                logger.info(f"🔄 Using cached notebook content for: {notebook_path}")
+                return self._current_notebook_content or "", str(notebook_path), is_explicit
             
         except Exception as e:
             logger.error(f"❌ Error loading notebook: {e}")
             import traceback
             logger.debug(f"Full traceback: {traceback.format_exc()}")
-            return "", ""
+            return "", "", False
     
     def _extract_notebook_path(self, query):
         """Extract notebook path from query or find default"""
@@ -1270,7 +1290,7 @@ class DataScienceAgent(Flow):
                 
                 if notebook_path.exists():
                     logger.debug(f"✅ Explicit notebook path exists: {notebook_path}")
-                    return notebook_path
+                    return {"path": notebook_path, "explicit": True}
                 else:
                     logger.warning(f"❌ Explicit notebook path does not exist: {notebook_path}")
         
@@ -1287,27 +1307,17 @@ class DataScienceAgent(Flow):
                     # Try as absolute path first
                     if notebook_path.is_absolute() and notebook_path.exists():
                         logger.info(f"✅ Found absolute notebook path: {notebook_path}")
-                        return notebook_path
+                        return {"path": notebook_path, "explicit": True}
                     
                     # Try as relative path from working directory
                     relative_path = working_dir / notebook_path
                     if relative_path.exists():
                         logger.info(f"✅ Found relative notebook path: {relative_path}")
-                        return relative_path
+                        return {"path": relative_path, "explicit": True}
                     
                     logger.debug(f"Path doesn't exist: {notebook_path}")
         
-        # Look for .ipynb files in current directory
-        logger.debug("Looking for .ipynb files in current directory")
-        ipynb_files = list(working_dir.glob("*.ipynb"))
-        logger.debug(f"Found {len(ipynb_files)} .ipynb files: {ipynb_files}")
-        
-        if ipynb_files:
-            selected_notebook = ipynb_files[0]
-            logger.debug(f"✅ Selected default notebook: {selected_notebook}")
-            return selected_notebook
-        
-        logger.warning("❌ No notebook files found")
+        logger.warning("❌ No explicit notebook path found")
         return None
     
     def run_analysis(self, user_query, **kwargs):
@@ -1336,7 +1346,7 @@ class DataScienceAgent(Flow):
                 "response": shared.get("final_response", "No response generated"),
                 "context_loaded": bool(shared.get("repo_context", "")),
                 "notebook_loaded": bool(shared.get("notebook_content", "")),
-                "notebook_path": shared.get("notebook_path", ""),
+                "notebook_path": shared.get("notebook_path", "") if shared.get("notebook_explicit", False) else "",
                 "action_history": shared.get("action_history", []),
                 "processing_summary": {
                     "repo_context_loaded": bool(shared.get("repo_context", "")),
