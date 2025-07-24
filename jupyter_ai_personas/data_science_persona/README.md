@@ -1,50 +1,18 @@
-# 🧠 Advanced Data Science Agent
+# Advanced Data Science Agent
 
 An intelligent PocketFlow-powered data science persona that uses sophisticated reasoning to provide targeted, context-aware analysis and recommendations. This persona combines AI decision-making with deep notebook understanding to deliver actionable insights for data science projects.
 
-## ✨ Key Features
+## Key Features
 
-- **🤖 Intelligent Decision-Making**: Uses LLM reasoning to choose optimal analysis approaches
-- **🔄 Iterative Analysis**: Can perform multiple analysis rounds based on findings
-- **📊 Context Integration**: Combines repo context, notebook content, and conversation history
-- **🎯 Targeted Responses**: Provides focused analysis based on specific user needs
-- **📓 Smart Notebook Reading**: Automatically detects and analyzes notebook files
-- **⚡ Adaptive Workflows**: Routes between focused analysis and comprehensive reviews
-- **🛡️ Robust Error Handling**: Graceful fallbacks with detailed logging
+- **Intelligent Decision-Making**: Uses LLM reasoning to choose optimal analysis approaches
+- **Iterative Analysis**: Can perform multiple analysis rounds based on findings
+- **Context Integration**: Combines repo context, notebook content, and conversation history
+- **Targeted Responses**: Provides focused analysis based on specific user needs
+- **Smart Notebook Reading**: Automatically detects and analyzes notebook files
+- **Adaptive Workflows**: Routes between focused analysis and comprehensive reviews
+- **Robust Error Handling**: Graceful fallbacks with detailed logging
 
-## 🏗️ Architecture Overview
-
-### **Agent-Based Architecture**
-```
-                    DataScienceAgent (Orchestrator)
-                            |
-                    ┌───────┴───────┐
-                    │   Load Context │
-                    │ • repo_context.md
-                    │ • notebook files
-                    └───────┬───────┘
-                            |
-                    ┌───────▼───────┐
-                    │ DecideAction  │ ◄──┐
-                    │ (Decision Node)│    │
-                    └───┬───────┬───┘    │
-                        │       │        │
-            ┌───────────▼───┐   │        │
-            │ DataAnalysis   │   │        │
-            │ (Focused)      │───┘        │
-            └───────────────┘            │
-                        │                │
-            ┌───────────▼───────────────┐│
-            │ CompleteAnalysis          ││
-            │ (Comprehensive)           ││
-            └───────────┬───────────────┘│
-                        │                │
-                ┌───────▼────────┐       │
-                │ Final Response │       │
-                └────────────────┘       │
-                                        │
-                    Loop Back ──────────┘
-```
+## Architecture Overview
 
 ### **Intelligent Decision Flow**
 1. **Context Loading**: Reads `repo_context.md` and notebook files
@@ -53,7 +21,7 @@ An intelligent PocketFlow-powered data science persona that uses sophisticated r
 4. **Iterative Refinement**: Can loop back for additional analysis
 5. **Comprehensive Response**: Delivers actionable insights and code
 
-## 🚀 Quick Start
+## Quick Start
 
 ### **Installation & Setup**
 
@@ -88,7 +56,7 @@ persona = DataSciencePersona()
 result = await persona.process_message(message)
 ```
 
-## 🧠 Agent Components
+## Agent Components
 
 ### **1. DecideAction Node**
 **Purpose**: AI-powered decision making
@@ -119,9 +87,9 @@ result = await persona.process_message(message)
 - Can route back to decision node for iterative analysis
 
 **Output Format**:
-- **📊 Data Analysis**: Current state and quality assessment
-- **🔍 Specific Findings**: Direct answers to user questions
-- **💡 Recommendations**: Actionable next steps
+- **Data Analysis**: Current state and quality assessment
+- **Specific Findings**: Direct answers to user questions
+- **Recommendations**: Actionable next steps
 
 ### **3. CompleteAnalysis Node**
 **Purpose**: Comprehensive data science analysis
@@ -133,11 +101,11 @@ result = await persona.process_message(message)
 - Testing and validation approaches
 
 **Output Format**:
-- **📊 Current State Analysis**: Thorough assessment
-- **🎯 Targeted Recommendations**: Priority-ordered suggestions
-- **💻 Implementation Code**: Ready-to-use code snippets
-- **🔄 Next Steps Roadmap**: Strategic development plan
-- **🧪 Testing & Validation**: Quality assurance recommendations
+- **Current State Analysis**: Thorough assessment
+- **Targeted Recommendations**: Priority-ordered suggestions
+- **Implementation Code**: Ready-to-use code snippets
+- **Next Steps Roadmap**: Strategic development plan
+- **Testing & Validation**: Quality assurance recommendations
 
 ### **4. Context Loading System**
 **Purpose**: Intelligent file reading and context preparation
@@ -149,7 +117,7 @@ result = await persona.process_message(message)
 - **Repository context**: Reads `repo_context.md` for project understanding
 - **Conversation history**: Integrates chat history for context
 
-## 📊 Usage Examples
+## Usage Examples
 
 ### **1. Data Analysis Request**
 ```python
@@ -249,7 +217,7 @@ Robust parsing with multiple fallback strategies:
 - **YAML parsing errors**: Uses text extraction fallbacks
 - **Configuration issues**: Detailed error messages with troubleshooting
 
-## 📈 Performance & Monitoring
+## Performance & Monitoring
 
 ### **Logging Levels**
 ```python
@@ -279,7 +247,7 @@ Every response includes:
 - Notebook: `/path/to/notebook.ipynb`
 ```
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
 ### **Common Issues**
 
@@ -331,12 +299,13 @@ data_science_persona/
 ```
 
 ### **System Requirements**
-- Python 3.9+
+- Python 3.9+, but <= 3.12 because of the autogluon dependency
 - Jupyter AI 3.0+
 - AWS Bedrock access (or compatible model provider)
 - Sufficient memory for notebook content processing
 
-## 🚀 Performance Characteristics
+
+## Performance Characteristics
 
 | Metric | Value | Description |
 |--------|--------|-------------|
@@ -346,7 +315,7 @@ data_science_persona/
 | **Notebook Size Limit** | ~1MB | Recommended maximum notebook size |
 | **Context Window** | 200K+ tokens | With modern LLMs |
 
-## 🤝 Contributing
+## Contributing
 
 ### **Adding New Actions**
 1. Update `DecideAction._create_decision_prompt()` with new action
@@ -365,18 +334,3 @@ data_science_persona/
 2. Add more sophisticated YAML parsing
 3. Include additional context sources
 4. Refine action categorization
-
-## 📄 License
-
-Part of the Jupyter AI Personas package. See project license for details.
-
-## 🙏 Acknowledgments
-
-- **PocketFlow**: Excellent flow orchestration framework
-- **agno**: Powerful agent framework for LLM integration  
-- **Jupyter AI**: Extensible AI platform for notebooks
-- **AWS Bedrock**: Reliable foundation model access
-
----
-
-**🎯 Ready to analyze your data science projects with AI-powered insights? Get started with `@DataSciencePersona` in Jupyter AI!**
