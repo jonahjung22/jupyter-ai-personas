@@ -157,35 +157,19 @@ class RAGSearchTool(Toolkit):
             })
         
         try:
-            # Create enhanced search queries for the topic
-            search_queries = [
-                topic,
-                f"{topic} python examples",
-                f"{topic} tutorial step by step",
-                f"how to {topic}"
-            ]
+            # Enhanced search query for the topic
+            if notebook_context:
+                search_query = f"{topic} {notebook_context}"
+            else:
+                search_query = f"{topic} python examples tutorial"
             
-            all_results = []
-            seen_content = set()
-            
-            for query in search_queries:
-                results = self.rag_system.search(query, k=max(2, k//len(search_queries)))
-                
-                for result in results:
-                    # Avoid duplicate content
-                    content_hash = hash(result["content"][:100])
-                    if content_hash not in seen_content:
-                        seen_content.add(content_hash)
-                        all_results.append(result)
-            
-            # Sort by relevance if we have scores, otherwise keep order
-            final_results = all_results[:k]
+            results = self.rag_system.search(search_query, k=k)
             
             response = {
                 "topic": topic,
-                "search_queries_used": search_queries,
-                "total_results": len(final_results),
-                "results": final_results,
+                "search_query_used": search_query,
+                "total_results": len(results),
+                "results": results,
                 "notebook_context_applied": notebook_context is not None
             }
             
@@ -226,8 +210,8 @@ class RAGSearchTool(Toolkit):
             else:
                 search_query = f"{task_description} python code example"
             
-            # Search for results
-            results = self.rag_system.search(search_query, k=k*2)  # Get more to filter
+            # Search for results (get extra to filter for code content)
+            results = self.rag_system.search(search_query, k=k*2)
             
             # Filter for code cells and relevant content
             code_results = []
@@ -325,7 +309,7 @@ def create_simple_rag_tools(force_rebuild: bool = False) -> RAGSearchTool:
 # Quick test function
 def test_rag_integration():
     """Test the RAG integration tool."""
-    print("🧪 Testing RAG integration tool...")
+    print("Testing RAG integration tool...")
     
     try:
         rag_tool = create_simple_rag_tools()
@@ -335,15 +319,15 @@ def test_rag_integration():
         result_data = json.loads(result)
         
         if result_data.get("search_successful"):
-            print("✅ RAG integration test successful!")
+            print("RAG integration test successful!")
             print(f"Found {result_data['total_results']} results")
             return True
         else:
-            print(f"❌ RAG integration test failed: {result_data.get('error')}")
+            print(f"RAG integration test failed: {result_data.get('error')}")
             return False
             
     except Exception as e:
-        print(f"❌ RAG integration test failed with exception: {e}")
+        print(f"RAG integration test failed with exception: {e}")
         return False
 
 

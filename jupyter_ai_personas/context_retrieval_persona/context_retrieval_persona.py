@@ -187,7 +187,7 @@ class ContextRetrievalPersona(BasePersona):
 
         # Handle greetings and simple messages without RAG
         if self.is_greeting(message_text):
-            greeting_response = """👋 Hello! I'm your Context Retrieval Specialist.
+            greeting_response = """👋 Hello! I'm your Context Retrieval Persona.
 
                                 I help analyze your data science work and find relevant resources from the Python Data Science Handbook using RAG search.
 
@@ -226,14 +226,14 @@ class ContextRetrievalPersona(BasePersona):
 
         # Create system prompt
         system_prompt = f"""
-Context Retrieval Session:
-Model: {model_id}
-Provider: {provider_name}
-User Request: {message_text}
-{history_text}
+                        Context Retrieval Session:
+                        Model: {model_id}
+                        Provider: {provider_name}
+                        User Request: {message_text}
+                        {history_text}
 
-Goal: Analyze notebook context and find relevant Python Data Science Handbook content.
-"""
+                        Goal: Analyze notebook context and find relevant Python Data Science Handbook content.
+                        """
 
         # Initialize and run team
         context_team = self.initialize_context_retrieval_team(system_prompt)

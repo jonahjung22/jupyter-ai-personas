@@ -87,7 +87,7 @@ class PythonDSHandbookRAG:
         self.embeddings = None
         self.vectorstore = None
         self.documents = []
-        self._embeddings_cache = {}  # Cache for embeddings by model name
+        self._embeddings_cache = {}
         
         # Ensure directories exist
         self.vector_store_path.mkdir(parents=True, exist_ok=True)
@@ -225,7 +225,6 @@ class PythonDSHandbookRAG:
             
             # Cache the embeddings for future use
             self._embeddings_cache[self.embedding_model] = self.embeddings
-            logger.info("Embeddings initialized and cached successfully")
             return True
         except Exception as e:
             logger.error(f"Failed to initialize embeddings: {e}")
@@ -237,9 +236,6 @@ class PythonDSHandbookRAG:
         if not force_rebuild and self._vector_store_exists():
             logger.info("✅ Using existing vector store (fast loading)")
             return self._load_existing_vector_store()
-        
-        # Build new vector store
-        logger.info("🔨 Building new vector store (this may take 5-10 minutes)...")
         
         # Extract and chunk documents
         documents = self.extract_notebook_content()
