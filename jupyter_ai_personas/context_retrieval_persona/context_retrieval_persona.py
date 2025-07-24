@@ -169,10 +169,46 @@ class ContextRetrievalPersona(BasePersona):
         
         return context_team
 
+    def is_greeting(self, message_text: str) -> bool:
+        """Check if the message is a greeting or simple conversation."""
+        greeting_patterns = [
+            "hello", "hi", "hey", "good morning", "good afternoon", "good evening",
+            "how are you", "what's up", "greetings", "salutations", "howdy",
+            "what can you do", "help", "who are you", "introduce yourself"
+        ]
+        
+        message_lower = message_text.lower().strip()
+        return any(pattern in message_lower for pattern in greeting_patterns)
+
     async def process_message(self, message: Message):
         """Process messages using the context retrieval team."""
         print(f"🚀 CONTEXT RETRIEVAL REQUEST: {message.body}")
         message_text = message.body
+
+        # Handle greetings and simple messages without RAG
+        if self.is_greeting(message_text):
+            greeting_response = """👋 Hello! I'm your Context Retrieval Specialist.
+
+                                I help analyze your data science work and find relevant resources from the Python Data Science Handbook using RAG search.
+
+                                **How to use me:**
+                                - Ask me questions about data science concepts, techniques, or problems
+                                - Include `notebook: /path/to/your/notebook.ipynb` to analyze your current work
+                                - I'll search the Python Data Science Handbook and create a comprehensive report
+
+                                **I can help with:**
+                                - Finding relevant code examples for your analysis
+                                - Semantic search through data science documentation
+                                - Context-aware recommendations based on your notebook
+                                - Best practices and patterns for data science workflows
+
+                                What would you like help with today?"""
+            
+            async def response_iterator():
+                yield greeting_response
+            
+            await self.stream_message(response_iterator())
+            return
 
         provider_name = self.config_manager.lm_provider.name
         model_id = self.config_manager.lm_provider_params["model_id"]
