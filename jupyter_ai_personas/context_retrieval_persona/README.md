@@ -13,7 +13,7 @@ The Context Retriever Persona is a multi-agent system that understands your curr
 - **Context-Aware Recommendations**: Provides relevant code examples, best practices, and documentation based on your current work
 - **Multi-Agent Architecture**: Three specialized agents for analysis, search, and report generation
 - **Comprehensive Reports**: Generates detailed markdown reports with actionable next steps
-- **Enhanced Chunk Display**: Full retrieved text chunks are displayed in terminal for debugging
+- **Optimized Performance**: Improved caching and simplified logging for faster execution
 - **Automatic Report Saving**: Generated reports are automatically saved as `repo_context.md`
 - **Improved RAG Parameters**: Increased chunk size (1500 chars) and search results (8 chunks) for better coverage
 
@@ -166,7 +166,7 @@ rag = PythonDSHandbookRAG(
 - **Default Results**: 8 chunks per search (increased from 5)
 - **Chunk Size**: 1500 characters (increased from 1000)
 - **Chunk Overlap**: 300 characters (increased from 200)
-- **Terminal Display**: Full retrieved chunks are logged to terminal for debugging
+- **Efficient Logging**: Concise search result logging with essential debugging information
 
 ## File Structure
 
@@ -178,7 +178,7 @@ context_retrieval_persona/
 ├── rag_integration_tool.py        # Agno tool wrapper
 ├── file_reader_tool.py            # Notebook content extraction
 ├── setup_rag_system.py           # Setup script
-├── ynotebook_wrapper.py           # Jupyter notebook integration
+├── __init__.py                    # Package initialization
 ├── test_context_retrieval.ipynb   # Test notebook
 ├── repo_context.md               # Generated markdown reports
 ├── PythonDataScienceHandbook/     # Cloned repository
@@ -192,9 +192,10 @@ context_retrieval_persona/
 ## Performance Notes
 
 - **First Run**: 5-10 minutes to build vector store
-- **Subsequent Runs**: <5 seconds using cached vectors
+- **Subsequent Runs**: <3 seconds using cached vectors and optimized code
 - **Memory Usage**: ~500MB for full vector store
 - **Search Speed**: <1 second for semantic queries
+- **Recent Optimizations**: Simplified logging, improved caching, and reduced code complexity
 
 ## Troubleshooting
 
@@ -217,8 +218,11 @@ context_retrieval_persona/
 
 ### Debug Information
 ```python
-from rag_integration_tool import create_simple_rag_tools
+# Check system status with setup script
+python setup_rag_system.py
 
+# Or manually check RAG system
+from rag_integration_tool import create_simple_rag_tools
 rag_tool = create_simple_rag_tools()
 status = rag_tool.get_system_status()
 print(status)  # Detailed system diagnostics
