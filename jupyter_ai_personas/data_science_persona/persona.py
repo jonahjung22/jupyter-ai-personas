@@ -175,9 +175,6 @@ class DataSciencePersona(BasePersona):
     async def _prepare_context_info(self, message: Message) -> Dict[str, Any]:
         """Prepare context information for the agent"""
         try:
-            # Check for new notebook path in the message
-            self._check_and_update_notebook_path(message.body)
-            
             # Get chat history
             history = YChatHistory(ychat=self.ychat, k=2)
             messages = await history.aget_messages()
