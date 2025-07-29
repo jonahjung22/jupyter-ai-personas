@@ -1,10 +1,3 @@
-"""
-Data Science Persona Package
-
-A streamlined PocketFlow-based data science analysis persona.
-Reads repo context and notebook content to provide actionable recommendations.
-"""
-
 # Import the main persona
 from .persona import DataSciencePersona
 

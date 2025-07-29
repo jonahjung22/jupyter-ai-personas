@@ -6,7 +6,6 @@ from typing import Dict, Any
 
 logger = logging.getLogger(__name__)
 
-
 class AutoGluonTool:
     """Simplified AutoGluon tool for generating contextual ML code."""
     

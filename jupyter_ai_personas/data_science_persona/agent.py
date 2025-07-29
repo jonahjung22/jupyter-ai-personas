@@ -16,13 +16,9 @@ except ImportError as e:
 
 logger = logging.getLogger(__name__)
 
-
 class DataScienceAgent(Flow):
     """
     PocketFlow Agent for Data Science Analysis
-    
-    A sophisticated agent that can reason about data science tasks,
-    make decisions, and provide targeted analysis and recommendations.
     """
     
     def __init__(self, model_client=None):

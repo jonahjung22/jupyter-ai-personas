@@ -1,15 +1,3 @@
-"""
-Advanced PocketFlow Data Science Agent
-
-A sophisticated implementation using PocketFlow agent architecture with AI reasoning:
-1. Analyzes user intent and makes intelligent decisions
-2. Reads repo_context.md and notebook content automatically
-3. Chooses targeted analysis approach based on context
-4. Provides iterative, context-aware data science guidance
-
-Features intelligent decision-making, reasoning capabilities, and adaptive responses.
-"""
-
 import logging
 from typing import Dict, Any, AsyncGenerator, Optional
 from datetime import datetime
@@ -30,16 +18,6 @@ session = boto3.Session()
 
 
 class DataSciencePersona(BasePersona):
-    """
-    Advanced PocketFlow Data Science Persona
-    
-    Uses sophisticated PocketFlow agent with reasoning capabilities to:
-    - Analyze user queries and make intelligent decisions
-    - Read repo_context.md for project understanding
-    - Analyze notebook content with targeted approach
-    - Generate actionable analysis and code recommendations
-    - Provide iterative, context-aware assistance
-    """
     
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
