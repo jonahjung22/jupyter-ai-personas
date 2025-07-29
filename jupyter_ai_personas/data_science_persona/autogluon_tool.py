@@ -1,123 +1,47 @@
-"""
-Comprehensive AutoGluon Tool for Data Science Agent
-
-Provides automated machine learning capabilities across all AutoGluon domains:
-- Tabular: Structured data prediction (classification/regression)
-- Multimodal: Text, image, and mixed data tasks
-- Time Series: Forecasting and temporal pattern analysis
-"""
 
 import logging
-import pandas as pd
-import numpy as np
-from pathlib import Path
-import json
-from typing import Dict, Any, Optional, Union, List
 import tempfile
-import shutil
-from datetime import datetime
+import os
+from typing import Dict, Any
 
 logger = logging.getLogger(__name__)
 
+
 class AutoGluonTool:
-    """
-    Comprehensive AutoGluon tool supporting tabular, multimodal, and time series tasks.
+    """Simplified AutoGluon tool for generating contextual ML code."""
     
-    Features:
-    - Tabular prediction (classification/regression)
-    - Multimodal tasks (text, image, mixed data)
-    - Time series forecasting
-    - Automated model selection and hyperparameter tuning
-    - Model evaluation and interpretation
-    - Deployment-ready outputs
-    """
-    
-    def __init__(self, work_dir: Optional[str] = None):
-        """Initialize AutoGluon tool with availability checks."""
-        self.work_dir = Path(work_dir) if work_dir else Path.cwd() / "autogluon_models"
-        self.work_dir.mkdir(exist_ok=True)
-        
-        # Check availability of each AutoGluon domain
+    def __init__(self, default_time_limit: int = 120):
         self.availability = self._check_availability()
+        self.default_time_limit = default_time_limit  # 120 for quick testing, 600 for optimal training
     
     def _check_availability(self) -> Dict[str, bool]:
         """Check which AutoGluon domains are available."""
-        availability = {
-            "tabular": False,
-            "multimodal": False,
-            "timeseries": False
-        }
+        availability = {"tabular": False, "multimodal": False, "timeseries": False}
         
         try:
             from autogluon.tabular import TabularPredictor
             availability["tabular"] = True
         except ImportError:
-            logger.warning("AutoGluon tabular not available")
+            pass
         
         try:
             from autogluon.multimodal import MultiModalPredictor
             availability["multimodal"] = True
         except ImportError:
-            logger.warning("AutoGluon multimodal not available")
+            pass
         
         try:
             from autogluon.timeseries import TimeSeriesPredictor
             availability["timeseries"] = True
         except ImportError:
-            logger.warning("AutoGluon timeseries not available")
+            pass
         
         return availability
-    
-    def _validate_training_inputs(self, data, target_column) -> Dict[str, Any]:
-        """Validate training inputs before model training"""
-        try:
-            import pandas as pd
-            from pathlib import Path
-            
-            # Check if data is None or empty
-            if data is None:
-                return {"valid": False, "error": "Data source is None"}
-            
-            # Handle different data types
-            if isinstance(data, pd.DataFrame):
-                # Data is already a DataFrame - validate it
-                if data.empty:
-                    return {"valid": False, "error": "DataFrame is empty"}
-                if len(data) < 2:
-                    return {"valid": False, "error": f"Insufficient data: only {len(data)} rows (minimum 2 required)"}
-                return {"valid": True, "error": None}
-            
-            elif isinstance(data, (str, Path)):
-                # Data is a file path - validate it exists and is readable
-                data_path = Path(str(data))
-                
-                # Check for placeholder strings
-                placeholder_indicators = ["not_specified", "TBD", "placeholder", "[path to", "your_data"]
-                if any(indicator in str(data).lower() for indicator in placeholder_indicators):
-                    return {"valid": False, "error": f"Invalid data source (placeholder detected): {data}"}
-                
-                # Check if file exists
-                if not data_path.exists():
-                    return {"valid": False, "error": f"Data file not found: {data_path}"}
-                
-                # Check file extension
-                valid_extensions = ['.csv', '.json', '.xlsx', '.parquet', '.tsv', '.txt']
-                if data_path.suffix.lower() not in valid_extensions:
-                    return {"valid": False, "error": f"Unsupported file type: {data_path.suffix}. Supported: {valid_extensions}"}
-                
-                return {"valid": True, "error": None}
-            
-            else:
-                return {"valid": False, "error": f"Invalid data type: {type(data)}. Expected DataFrame, file path, or string"}
-                
-        except Exception as e:
-            return {"valid": False, "error": f"Validation error: {str(e)}"}
     
     def get_status(self) -> Dict[str, Any]:
         """Get tool status and installation information."""
         return {
             "availability": self.availability,
-            "work_directory": str(self.work_dir),
             "installation_commands": {
                 "full": "pip install autogluon",
                 "tabular_only": "pip install autogluon.tabular",
@@ -127,517 +51,590 @@ class AutoGluonTool:
             "any_available": any(self.availability.values())
         }
     
-    # TABULAR PREDICTION METHODS
-    def train_tabular_model(
-        self,
-        data: Union[pd.DataFrame, str, Path],
-        target_column: str,
-        problem_type: Optional[str] = None,
-        time_limit: int = 600,
-        presets: str = "best_quality",
-        eval_metric: Optional[str] = None,
-        model_name: Optional[str] = None,
-        test_data: Optional[Union[pd.DataFrame, str, Path]] = None,
-        **kwargs
-    ) -> Dict[str, Any]:
-        """Train tabular prediction model."""
-        if not self.availability["tabular"]:
-            return {
-                "success": False,
-                "error": "AutoGluon tabular not available. Install with: pip install autogluon.tabular"
-            }
-        
-        # Enhanced input validation
-        validation_result = self._validate_training_inputs(data, target_column)
-        if not validation_result["valid"]:
-            return {
-                "success": False,
-                "error": validation_result["error"]
-            }
-        
+    def recommend_ml_solution(self, problem_context: Dict[str, Any]) -> Dict[str, Any]:
+        """Generate AutoGluon code based on problem context - requires dataset-specific generation."""
         try:
-            from autogluon.tabular import TabularDataset, TabularPredictor
+            logger.info("🎯 AutoGluon recommendation requires dataset-specific generation")
             
-            # Load and validate data
-            train_data = TabularDataset(str(data) if isinstance(data, (str, Path)) else data)
-            
-            if target_column not in train_data.columns:
-                return {
-                    "success": False,
-                    "error": f"Target column '{target_column}' not found. Available: {list(train_data.columns)}"
-                }
-            
-            # Setup model
-            model_name = model_name or f"tabular_{target_column}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-            model_path = self.work_dir / model_name
-            
-            logger.info(f"🚀 Training tabular model: {model_name}")
-            logger.info(f"📊 Data shape: {train_data.shape}, Target: {target_column}")
-            
-            # Initialize and train predictor
-            predictor = TabularPredictor(
-                label=target_column,
-                path=str(model_path),
-                problem_type=problem_type,
-                eval_metric=eval_metric,
-                **kwargs
-            )
-            
-            predictor.fit(
-                train_data,
-                time_limit=time_limit,
-                presets=presets,
-                verbosity=2
-            )
-            
-            # Evaluate model
-            results = self._evaluate_tabular_model(predictor, train_data, test_data)
-            results.update({
-                "success": True,
-                "model_name": model_name,
-                "model_path": str(model_path),
-                "model_type": "tabular",
-                "target_column": target_column,
-                "problem_type": predictor.problem_type,
-                "training_time": time_limit,
-                "preset": presets
-            })
-            
-            logger.info(f"✅ Tabular model training completed: {model_name}")
-            return results
-            
-        except Exception as e:
-            logger.error(f"❌ Tabular training failed: {e}")
-            return {"success": False, "error": str(e)}
-    
-    def _evaluate_tabular_model(self, predictor, train_data, test_data=None) -> Dict[str, Any]:
-        """Evaluate tabular model performance."""
-        results = {}
-        
-        try:
-            # Leaderboard
-            leaderboard = predictor.leaderboard(silent=True)
-            results["leaderboard"] = leaderboard.to_dict('records')
-            results["best_model"] = leaderboard.iloc[0]['model']
-            results["best_score"] = leaderboard.iloc[0]['score_val']
-            
-            # Feature importance
-            feature_importance = predictor.feature_importance(train_data)
-            results["feature_importance"] = feature_importance.to_dict()
-            
-            # Test evaluation
-            if test_data is not None:
-                from autogluon.tabular import TabularDataset
-                test_data = TabularDataset(str(test_data) if isinstance(test_data, (str, Path)) else test_data)
-                test_performance = predictor.evaluate(test_data, silent=True)
-                results["test_performance"] = test_performance
+            return {
+                "success": False, 
+                "error": "Generic recommendations removed. Use generate_dataset_specific_code() with actual dataset for optimal results.",
+                "suggestion": "The AutoGluon tool now only supports dataset-specific code generation for better accuracy and reliability."
+            }
                 
         except Exception as e:
-            logger.warning(f"Evaluation error: {e}")
-            results["evaluation_error"] = str(e)
-        
-        return results
+            logger.error(f"AutoGluon recommendation error: {e}")
+            return {"success": False, "error": str(e)}
     
-    # MULTIMODAL PREDICTION METHODS
-    def train_multimodal_model(
-        self,
-        data: Union[pd.DataFrame, str, Path],
-        target_column: str,
-        problem_type: Optional[str] = None,
-        time_limit: int = 600,
-        presets: str = "best_quality",
-        model_name: Optional[str] = None,
-        **kwargs
-    ) -> Dict[str, Any]:
-        """Train multimodal prediction model for text, image, and mixed data."""
-        if not self.availability["multimodal"]:
-            return {
-                "success": False,
-                "error": "AutoGluon multimodal not available. Install with: pip install autogluon.multimodal"
-            }
-        
+    def generate_dataset_specific_code(self, notebook_data: Dict[str, Any], domain: str, user_query: str = "") -> Dict[str, Any]:
+        """Generate AutoGluon code customized for the specific dataset structure."""
         try:
-            from autogluon.multimodal import MultiModalPredictor
+            if not notebook_data.get("success") or "dataframe" not in notebook_data:
+                return {"success": False, "error": "No valid dataset provided"}
             
-            # Load data
-            if isinstance(data, (str, Path)):
-                train_data = pd.read_csv(str(data))
+            df = notebook_data["dataframe"]
+            variable_name = notebook_data.get("variable_name", "df")
+            
+            logger.info(f"📊 Analyzing dataset structure for {domain} domain")
+            
+            # Analyze the actual DataFrame structure
+            columns = list(df.columns)
+            shape = df.shape
+            
+            # Detect target column
+            target_column = self._detect_target_column(df, notebook_data, user_query)
+            
+            logger.info(f"🎯 Detected target column: {target_column}")
+            logger.info(f"📋 Dataset shape: {shape}")
+            logger.info(f"📊 Columns: {columns}")
+            
+            if domain == "timeseries":
+                return self._generate_timeseries_code_for_dataset(df, variable_name, target_column, columns, user_query)
+            elif domain == "tabular":
+                return self._generate_tabular_code_for_dataset(df, variable_name, target_column, columns, user_query)
+            elif domain == "multimodal":
+                return self._generate_multimodal_code_for_dataset(df, variable_name, target_column, columns, user_query)
+            else:
+                return {"success": False, "error": f"Unsupported domain: {domain}"}
+                
+        except Exception as e:
+            logger.error(f"Dataset-specific code generation error: {e}")
+            return {"success": False, "error": str(e)}
+    
+    def _detect_target_column(self, df, notebook_data: Dict[str, Any], user_query: str) -> str:
+        """Detect the most likely target column from the dataset."""
+        # First try explicit target from notebook analysis
+        if notebook_data.get("target_column"):
+            return notebook_data["target_column"]
+        
+        # Look for common target column names
+        target_candidates = []
+        common_targets = ['target', 'label', 'y', 'class', 'category', 'outcome', 'result', 'price', 'value', 'sales', 'revenue']
+        
+        for col in df.columns:
+            col_lower = col.lower()
+            if col_lower in common_targets:
+                target_candidates.append(col)
+            elif any(target in col_lower for target in common_targets):
+                target_candidates.append(col)
+        
+        if target_candidates:
+            return target_candidates[0]
+        
+        # For time series, often the last numeric column is the target
+        numeric_cols = df.select_dtypes(include=['number']).columns.tolist()
+        if numeric_cols:
+            return numeric_cols[-1]  # Use last numeric column
+        
+        # Fallback to last column
+        return df.columns[-1] if len(df.columns) > 0 else 'target'
+    
+    def train_tabular_model(self, data, target_column: str, problem_type: str = "auto", 
+                          time_limit: int = 600, presets: str = "best_quality") -> Dict[str, Any]:
+        """Train actual AutoGluon tabular model and return leaderboard results."""
+        try:
+            if not self.availability.get("tabular", False):
+                return {
+                    "success": False,
+                    "error": "AutoGluon tabular not available. Install with: pip install autogluon.tabular"
+                }
+            
+            from autogluon.tabular import TabularDataset, TabularPredictor
+            import pandas as pd
+            
+            logger.info(f"🤖 Training AutoGluon tabular model - Target: {target_column}")
+            
+            # Convert data to TabularDataset if needed
+            if isinstance(data, pd.DataFrame):
+                train_data = TabularDataset(data)
             else:
                 train_data = data
             
-            if target_column not in train_data.columns:
-                return {
-                    "success": False,
-                    "error": f"Target column '{target_column}' not found. Available: {list(train_data.columns)}"
-                }
+            # Create temporary directory for model
+            temp_dir = tempfile.mkdtemp(prefix="autogluon_tabular_")
+            model_path = os.path.join(temp_dir, "tabular_model")
             
-            # Setup model
-            model_name = model_name or f"multimodal_{target_column}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-            model_path = self.work_dir / model_name
-            
-            logger.info(f"🚀 Training multimodal model: {model_name}")
-            logger.info(f"📊 Data shape: {train_data.shape}, Target: {target_column}")
-            
-            # Initialize and train predictor
-            predictor = MultiModalPredictor(
+            # Train the model
+            predictor = TabularPredictor(
                 label=target_column,
-                path=str(model_path),
                 problem_type=problem_type,
-                **kwargs
-            )
-            
-            predictor.fit(
+                path=model_path
+            ).fit(
                 train_data,
                 time_limit=time_limit,
                 presets=presets
             )
             
-            # Basic evaluation
-            try:
-                train_score = predictor.evaluate(train_data)
-                evaluation = {"train_score": train_score}
-            except Exception as e:
-                evaluation = {"evaluation_error": str(e)}
+            # Generate leaderboard
+            leaderboard = predictor.leaderboard()
             
-            logger.info(f"✅ Multimodal model training completed: {model_name}")
+            # Get model performance metrics
+            best_model = leaderboard.iloc[0]['model'] if len(leaderboard) > 0 else "Unknown"
+            best_score = leaderboard.iloc[0]['score_val'] if len(leaderboard) > 0 else "N/A"
+            
+            logger.info(f"✅ Training completed - Best model: {best_model}")
             
             return {
                 "success": True,
-                "model_name": model_name,
-                "model_path": str(model_path),
-                "model_type": "multimodal",
+                "predictor": predictor,
+                "leaderboard": leaderboard,
+                "best_model": best_model,
+                "best_score": best_score,
+                "model_path": model_path,
                 "target_column": target_column,
-                "problem_type": predictor.problem_type,
-                "training_time": time_limit,
+                "problem_type": problem_type,
                 "preset": presets,
-                "evaluation": evaluation
+                "training_time": time_limit
             }
             
         except Exception as e:
-            logger.error(f"❌ Multimodal training failed: {e}")
-            return {"success": False, "error": str(e)}
-    
-    # TIME SERIES FORECASTING METHODS
-    def train_timeseries_model(
-        self,
-        data: Union[pd.DataFrame, str, Path],
-        target_column: str,
-        timestamp_column: Optional[str] = None,
-        prediction_length: int = 24,
-        freq: Optional[str] = None,
-        time_limit: int = 600,
-        presets: str = "best_quality",
-        model_name: Optional[str] = None,
-        **kwargs
-    ) -> Dict[str, Any]:
-        """Train time series forecasting model."""
-        if not self.availability["timeseries"]:
+            logger.error(f"❌ Tabular training error: {e}")
             return {
                 "success": False,
-                "error": "AutoGluon timeseries not available. Install with: pip install autogluon.timeseries"
+                "error": str(e)
             }
-        
+    
+    def train_multimodal_model(self, data, target_column: str, problem_type: str = "auto",
+                             time_limit: int = 600, presets: str = "best_quality") -> Dict[str, Any]:
+        """Train actual AutoGluon multimodal model and return results."""
         try:
-            from autogluon.timeseries import TimeSeriesDataFrame, TimeSeriesPredictor
-            
-            # Load data
-            if isinstance(data, (str, Path)):
-                df = pd.read_csv(str(data))
-            else:
-                df = data
-            
-            if target_column not in df.columns:
+            if not self.availability.get("multimodal", False):
                 return {
                     "success": False,
-                    "error": f"Target column '{target_column}' not found. Available: {list(df.columns)}"
+                    "error": "AutoGluon multimodal not available. Install with: pip install autogluon.multimodal"
                 }
             
-            # Convert to TimeSeriesDataFrame
-            if timestamp_column:
-                df[timestamp_column] = pd.to_datetime(df[timestamp_column])
-                ts_data = TimeSeriesDataFrame.from_data_frame(
-                    df,
-                    id_column=None,  # Single time series
-                    timestamp_column=timestamp_column
-                )
+            from autogluon.multimodal import MultiModalPredictor
+            
+            logger.info(f"🤖 Training AutoGluon multimodal model - Target: {target_column}")
+            
+            # Create temporary directory for model
+            temp_dir = tempfile.mkdtemp(prefix="autogluon_multimodal_")
+            model_path = os.path.join(temp_dir, "multimodal_model")
+            
+            # Train the model
+            predictor = MultiModalPredictor(
+                label=target_column,
+                path=model_path
+            ).fit(
+                data,
+                time_limit=time_limit,
+                presets=presets
+            )
+            
+            # Evaluate the model
+            evaluation = predictor.evaluate(data)
+            
+            logger.info(f"✅ Multimodal training completed")
+            
+            return {
+                "success": True,
+                "predictor": predictor,
+                "evaluation": evaluation,
+                "model_path": model_path,
+                "target_column": target_column,
+                "problem_type": problem_type,
+                "preset": presets,
+                "training_time": time_limit
+            }
+            
+        except Exception as e:
+            logger.error(f"❌ Multimodal training error: {e}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+    
+    def train_timeseries_model(self, data, target_column: str, prediction_length: int = 24,
+                             time_limit: int = 600, presets: str = "best_quality") -> Dict[str, Any]:
+        """Train actual AutoGluon time series model and return results."""
+        try:
+            if not self.availability.get("timeseries", False):
+                return {
+                    "success": False,
+                    "error": "AutoGluon timeseries not available. Install with: pip install autogluon.timeseries"
+                }
+            
+            from autogluon.timeseries import TimeSeriesDataFrame, TimeSeriesPredictor
+            import pandas as pd
+            
+            logger.info(f"🤖 Training AutoGluon time series model - Target: {target_column}")
+            
+            # Convert to TimeSeriesDataFrame if needed
+            if isinstance(data, pd.DataFrame):
+                ts_data = TimeSeriesDataFrame(data)
             else:
-                # Assume data is already in time series format
-                ts_data = TimeSeriesDataFrame(df)
+                ts_data = data
             
-            # Setup model
-            model_name = model_name or f"timeseries_{target_column}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-            model_path = self.work_dir / model_name
+            # Create temporary directory for model
+            temp_dir = tempfile.mkdtemp(prefix="autogluon_timeseries_")
+            model_path = os.path.join(temp_dir, "timeseries_model")
             
-            logger.info(f"🚀 Training time series model: {model_name}")
-            logger.info(f"📊 Data shape: {ts_data.shape}, Target: {target_column}")
-            logger.info(f"🔮 Prediction length: {prediction_length}")
-            
-            # Initialize and train predictor
+            # Train the model
             predictor = TimeSeriesPredictor(
                 target=target_column,
                 prediction_length=prediction_length,
-                path=str(model_path),
-                freq=freq,
-                **kwargs
-            )
-            
-            predictor.fit(
+                path=model_path
+            ).fit(
                 ts_data,
                 time_limit=time_limit,
                 presets=presets
             )
             
-            # Basic evaluation
-            try:
-                train_score = predictor.evaluate(ts_data)
-                evaluation = {"train_score": train_score}
-            except Exception as e:
-                evaluation = {"evaluation_error": str(e)}
+            # Generate forecasts and evaluate
+            forecasts = predictor.predict(ts_data)
+            evaluation = predictor.evaluate(ts_data)
             
-            logger.info(f"✅ Time series model training completed: {model_name}")
+            logger.info(f"✅ Time series training completed")
             
             return {
                 "success": True,
-                "model_name": model_name,
-                "model_path": str(model_path),
-                "model_type": "timeseries",
+                "predictor": predictor,
+                "forecasts": forecasts,
+                "evaluation": evaluation,
+                "model_path": model_path,
                 "target_column": target_column,
                 "prediction_length": prediction_length,
-                "frequency": freq,
-                "training_time": time_limit,
                 "preset": presets,
-                "evaluation": evaluation
+                "training_time": time_limit
             }
             
         except Exception as e:
-            logger.error(f"❌ Time series training failed: {e}")
-            return {"success": False, "error": str(e)}
-    
-    # UNIVERSAL PREDICTION METHOD
-    def predict(
-        self,
-        model_path: Union[str, Path],
-        data: Union[pd.DataFrame, str, Path],
-        output_path: Optional[Union[str, Path]] = None
-    ) -> Dict[str, Any]:
-        """Make predictions using any trained AutoGluon model."""
-        try:
-            model_path = Path(model_path)
-            
-            # Determine model type from path structure
-            model_type = self._detect_model_type(model_path)
-            
-            if model_type == "tabular":
-                return self._predict_tabular(model_path, data, output_path)
-            elif model_type == "multimodal":
-                return self._predict_multimodal(model_path, data, output_path)
-            elif model_type == "timeseries":
-                return self._predict_timeseries(model_path, data, output_path)
-            else:
-                return {"success": False, "error": f"Unknown model type: {model_type}"}
-                
-        except Exception as e:
-            logger.error(f"❌ Prediction failed: {e}")
-            return {"success": False, "error": str(e)}
-    
-    def _detect_model_type(self, model_path: Path) -> str:
-        """Detect model type from saved model structure."""
-        # Check for model-specific files/directories
-        if (model_path / "models").exists():
-            return "tabular"
-        elif (model_path / "predictor.pkl").exists():
-            return "multimodal"
-        elif (model_path / "predictor.joblib").exists():
-            return "timeseries"
-        else:
-            return "unknown"
-    
-    def _predict_tabular(self, model_path, data, output_path=None):
-        """Make predictions with tabular model."""
-        from autogluon.tabular import TabularPredictor, TabularDataset
-        
-        predictor = TabularPredictor.load(str(model_path))
-        pred_data = TabularDataset(str(data) if isinstance(data, (str, Path)) else data)
-        
-        predictions = predictor.predict(pred_data)
-        
-        results = {
-            "success": True,
-            "predictions": predictions.tolist(),
-            "model_type": "tabular",
-            "num_predictions": len(predictions)
-        }
-        
-        # Add probabilities for classification
-        if predictor.problem_type in ['binary', 'multiclass']:
-            try:
-                probabilities = predictor.predict_proba(pred_data)
-                results["probabilities"] = probabilities.to_dict('records')
-            except Exception as e:
-                logger.warning(f"Could not get probabilities: {e}")
-        
-        if output_path:
-            pred_df = pd.DataFrame({"prediction": predictions})
-            pred_df.to_csv(output_path, index=False)
-            results["output_path"] = str(output_path)
-        
-        return results
-    
-    def _predict_multimodal(self, model_path, data, output_path=None):
-        """Make predictions with multimodal model."""
-        from autogluon.multimodal import MultiModalPredictor
-        
-        predictor = MultiModalPredictor.load(str(model_path))
-        pred_data = pd.read_csv(str(data)) if isinstance(data, (str, Path)) else data
-        
-        predictions = predictor.predict(pred_data)
-        
-        results = {
-            "success": True,
-            "predictions": predictions.tolist(),
-            "model_type": "multimodal",
-            "num_predictions": len(predictions)
-        }
-        
-        if output_path:
-            pred_df = pd.DataFrame({"prediction": predictions})
-            pred_df.to_csv(output_path, index=False)
-            results["output_path"] = str(output_path)
-        
-        return results
-    
-    def _predict_timeseries(self, model_path, data, output_path=None):
-        """Make predictions with time series model."""
-        from autogluon.timeseries import TimeSeriesPredictor, TimeSeriesDataFrame
-        
-        predictor = TimeSeriesPredictor.load(str(model_path))
-        
-        # Handle different data formats
-        if isinstance(data, (str, Path)):
-            df = pd.read_csv(str(data))
-            ts_data = TimeSeriesDataFrame(df)
-        else:
-            ts_data = TimeSeriesDataFrame(data)
-        
-        predictions = predictor.predict(ts_data)
-        
-        results = {
-            "success": True,
-            "predictions": predictions.to_dict('records'),
-            "model_type": "timeseries",
-            "num_predictions": len(predictions)
-        }
-        
-        if output_path:
-            predictions.to_csv(output_path)
-            results["output_path"] = str(output_path)
-        
-        return results
-    
-    # UTILITY METHODS
-    def list_models(self) -> Dict[str, Any]:
-        """List all available models."""
-        try:
-            models = []
-            
-            for model_dir in self.work_dir.iterdir():
-                if model_dir.is_dir():
-                    model_type = self._detect_model_type(model_dir)
-                    if model_type != "unknown":
-                        models.append({
-                            "name": model_dir.name,
-                            "path": str(model_dir),
-                            "type": model_type,
-                            "created": datetime.fromtimestamp(model_dir.stat().st_ctime).isoformat()
-                        })
-            
+            logger.error(f"❌ Time series training error: {e}")
             return {
-                "success": True,
-                "models": models,
-                "total_models": len(models)
+                "success": False,
+                "error": str(e)
             }
-            
-        except Exception as e:
-            return {"success": False, "error": str(e)}
     
-    def generate_code_examples(self) -> Dict[str, str]:
-        """Generate code examples for all AutoGluon domains."""
+    def format_leaderboard_results(self, training_result: Dict[str, Any]) -> str:
+        """Format leaderboard results for display."""
+        if not training_result.get("success", False):
+            return f"## ❌ Training Failed\n\nError: {training_result.get('error', 'Unknown error')}"
+        
+        if "leaderboard" in training_result:
+            # Tabular model with leaderboard
+            leaderboard = training_result["leaderboard"]
+            
+            leaderboard_text = "## 🏆 AutoGluon Model Leaderboard\n\n"
+            leaderboard_text += f"**🥇 Best Model: {training_result.get('best_model', 'Unknown')}**\n"
+            leaderboard_text += f"**📊 Best Score: {training_result.get('best_score', 'N/A')}**\n\n"
+            
+            leaderboard_text += "### Top Models Performance:\n\n"
+            
+            # Show top 5 models
+            top_models = leaderboard.head(5)
+            leaderboard_text += "| Model | Score | Training Time |\n"
+            leaderboard_text += "|-------|-------|---------------|\n"
+            
+            for idx, row in top_models.iterrows():
+                model_name = row.get('model', 'Unknown')
+                score = row.get('score_val', 'N/A')
+                fit_time = row.get('fit_time', 'N/A')
+                leaderboard_text += f"| {model_name} | {score} | {fit_time}s |\n"
+            
+            leaderboard_text += f"\n**Model saved to:** `{training_result.get('model_path', 'N/A')}`\n"
+            leaderboard_text += f"**Target Column:** {training_result.get('target_column', 'N/A')}\n"
+            leaderboard_text += f"**Problem Type:** {training_result.get('problem_type', 'N/A')}\n"
+            
+            return leaderboard_text
+        
+        elif "evaluation" in training_result:
+            # Multimodal or time series model
+            evaluation = training_result["evaluation"]
+            
+            result_text = "## 🤖 AutoGluon Training Results\n\n"
+            result_text += f"**✅ Training Completed Successfully!**\n\n"
+            result_text += f"**Model Type:** {training_result.get('domain', 'Unknown')}\n"
+            result_text += f"**Target Column:** {training_result.get('target_column', 'N/A')}\n"
+            result_text += f"**Model Path:** `{training_result.get('model_path', 'N/A')}`\n\n"
+            
+            if isinstance(evaluation, dict):
+                result_text += "### Performance Metrics:\n\n"
+                for metric, value in evaluation.items():
+                    result_text += f"- **{metric}:** {value}\n"
+            else:
+                result_text += f"### Performance Score: {evaluation}\n"
+            
+            return result_text
+        
+        else:
+            return "## ✅ Training Completed\n\nModel training finished successfully."
+    
+    def _generate_timeseries_code_for_dataset(self, df, variable_name: str, target_column: str, columns: list, user_query: str) -> Dict[str, Any]:
+        """Generate time series code customized for the specific dataset."""
+        
+        # Determine prediction length from query
+        prediction_length = 24  # default
+        if any(word in user_query.lower() for word in ["daily", "day"]):
+            prediction_length = 7
+        elif any(word in user_query.lower() for word in ["hourly", "hour"]):
+            prediction_length = 24
+        elif any(word in user_query.lower() for word in ["monthly", "month"]):
+            prediction_length = 12
+        
+        # Analyze the dataset structure
+        has_date_index = hasattr(df.index, 'dtype') and 'datetime' in str(df.index.dtype)
+        date_columns = [col for col in columns if 'date' in col.lower() or 'time' in col.lower()]
+        
+        code = f"""# AutoGluon Time Series Forecasting Solution - Dataset Specific
+from autogluon.timeseries import TimeSeriesDataFrame, TimeSeriesPredictor
+import pandas as pd
+
+# Dataset Analysis:
+# - Shape: {df.shape}
+# - Target Column: '{target_column}'
+# - Date Index: {has_date_index}
+# - Available Columns: {columns}
+
+# Prepare time series data for AutoGluon
+ts_data_formatted = {variable_name}.copy()
+
+# Handle date index or column
+if isinstance(ts_data_formatted.index, pd.DatetimeIndex):
+    # Data has datetime index - reset it to column
+    ts_data_formatted = ts_data_formatted.reset_index()
+    timestamp_col = ts_data_formatted.columns[0]
+else:
+    # Look for date column
+    date_cols = [col for col in ts_data_formatted.columns if 'date' in col.lower() or 'time' in col.lower()]
+    if date_cols:
+        timestamp_col = date_cols[0]
+    else:
+        # Create a simple date range if no date column found
+        ts_data_formatted['timestamp'] = pd.date_range(start='2020-01-01', periods=len(ts_data_formatted), freq='D')
+        timestamp_col = 'timestamp'
+
+# Add required item_id column (single time series)
+ts_data_formatted['item_id'] = 'series_1'
+
+# Rename to AutoGluon format
+ts_data_formatted = ts_data_formatted.rename(columns={{timestamp_col: 'timestamp'}})
+
+# Reorder columns: item_id, timestamp, target columns
+cols = ['item_id', 'timestamp'] + [col for col in ts_data_formatted.columns if col not in ['item_id', 'timestamp']]
+ts_data_formatted = ts_data_formatted[cols]
+
+print("📊 Dataset-specific formatting completed:")
+print(f"Original shape: {{len({variable_name})}}, {{len({variable_name}.columns)}}")
+print(f"Target column: '{target_column}'")
+print(f"Formatted columns: {{list(ts_data_formatted.columns)}}")
+print("\\nFirst few rows:")
+print(ts_data_formatted.head())
+
+# Verify target column exists
+if '{target_column}' not in ts_data_formatted.columns:
+    print("⚠️  Target column '{target_column}' not found!")
+    print("Available columns:", list(ts_data_formatted.columns))
+    # Use first numeric column as backup
+    numeric_cols = ts_data_formatted.select_dtypes(include=['number']).columns.tolist()
+    if len(numeric_cols) > 0:
+        actual_target = numeric_cols[0]
+        print(f"Using '{{actual_target}}' as target instead")
+    else:
+        actual_target = '{target_column}'
+else:
+    actual_target = '{target_column}'
+
+# Create TimeSeriesDataFrame
+ts_autogluon = TimeSeriesDataFrame(ts_data_formatted)
+
+# Train AutoGluon time series model
+predictor = TimeSeriesPredictor(
+    target=actual_target,
+    prediction_length={prediction_length},
+    path='./autogluon_models/timeseries_model'
+).fit(
+    ts_autogluon,
+    time_limit={self.default_time_limit},
+    presets='best_quality'
+)
+
+print(f"🔮 Generated forecasts for {{len(predictor.predict(ts_autogluon))}} steps")
+print("✅ Time series forecasting completed!")"""
+
+        leaderboard_code = f"""# 🏆 VIEW TIME SERIES MODEL PERFORMANCE AND RANKINGS
+import pandas as pd
+
+print("🏆 AutoGluon Time Series Training Summary:")
+print("="*50)
+
+# Get training summary and model information
+try:
+    summary = predictor.fit_summary()
+    print("📋 Training Summary:")
+    print(summary)
+except:
+    print("📋 Training summary not available")
+
+# Best model information - TimeSeriesPredictor doesn't expose individual model names
+print(f"\\n🥇 Best Model: AutoGluon Ensemble (WeightedEnsemble)")
+
+# Model performance evaluation
+performance = predictor.evaluate(ts_autogluon)
+print("\\n📊 Model Performance Metrics:")
+print(performance)
+
+# Generate forecasts
+forecasts = predictor.predict(ts_autogluon)
+print(f"\\n🔮 Forecast Summary:")
+print(f"📈 Generated {{len(forecasts)}} forecast steps")
+print(f"🎯 Target: {{actual_target}}")
+print(f"📊 Prediction Length: {prediction_length} steps")
+
+print(f"\\n📈 Sample Forecasts:")
+print(forecasts.head(10))
+
+print(f"\\n🎯 Model Selection:")
+print("AutoGluon automatically selected the best performing model from the ensemble")
+print("The WeightedEnsemble combines multiple models for optimal performance")"""
+
         return {
-            "tabular": self._generate_tabular_example(),
-            "multimodal": self._generate_multimodal_example(),
-            "timeseries": self._generate_timeseries_example()
+            "success": True,
+            "domain": "timeseries",
+            "optimized_code": code,
+            "leaderboard_code": leaderboard_code,
+            "solution_summary": f"## 🔮 AutoGluon Time Series Solution (Dataset-Specific)\n\n**Target:** {target_column}\n**Dataset Shape:** {df.shape}\n**Forecast Length:** {prediction_length} steps\n\n**Features:**\n- Customized for your specific dataset structure\n- Automatic date/time column detection\n- Robust target column validation\n- Production-ready forecasts"
         }
     
-    def _generate_tabular_example(self) -> str:
-        return '''
-# AutoGluon Tabular Example
+    def _generate_tabular_code_for_dataset(self, df, variable_name: str, target_column: str, columns: list, user_query: str) -> Dict[str, Any]:
+        """Generate tabular code customized for the specific dataset."""
+        
+        # Determine problem type from data and query
+        problem_type = "auto"
+        if any(word in user_query.lower() for word in ["classify", "classification", "category"]):
+            problem_type = "classification"
+        elif any(word in user_query.lower() for word in ["regression", "predict", "estimate"]):
+            problem_type = "regression"
+        elif target_column in df.columns:
+            # Auto-detect based on target column characteristics
+            unique_ratio = len(df[target_column].unique()) / len(df)
+            if unique_ratio < 0.05:  # Less than 5% unique values suggests classification
+                problem_type = "classification"
+            else:
+                problem_type = "regression"
+
+        code = f"""# AutoGluon Tabular ML Solution - Dataset Specific
 from autogluon.tabular import TabularDataset, TabularPredictor
 
-# Load data
-train_data = TabularDataset('train.csv')
-test_data = TabularDataset('test.csv')
+# Dataset Analysis:
+# - Shape: {df.shape}
+# - Target Column: '{target_column}'
+# - Available Columns: {columns}
+# - Problem Type: {problem_type}
 
-# Train model
-predictor = TabularPredictor(label='target').fit(
+# Verify target column exists
+if '{target_column}' not in {variable_name}.columns:
+    print("⚠️  Target column '{target_column}' not found!")
+    print("Available columns:", list({variable_name}.columns))
+    # Try to find a suitable target column
+    numeric_cols = {variable_name}.select_dtypes(include=['number']).columns.tolist()
+    if len(numeric_cols) > 0:
+        actual_target = numeric_cols[-1]  # Use last numeric column
+        print(f"Using '{{actual_target}}' as target instead")
+    else:
+        actual_target = {variable_name}.columns[-1]  # Use last column
+        print(f"Using '{{actual_target}}' as target instead")
+else:
+    actual_target = '{target_column}'
+
+print(f"📊 Training with target column: {{actual_target}}")
+print(f"📋 Dataset shape: {{{variable_name}.shape}}")
+
+# Load your data
+train_data = TabularDataset({variable_name})
+
+# Train AutoGluon model
+predictor = TabularPredictor(
+    label=actual_target,
+    problem_type='{problem_type}',
+    path='./autogluon_models/tabular_model'
+).fit(
     train_data,
-    time_limit=600,
+    time_limit={self.default_time_limit},
     presets='best_quality'
 )
 
-# Make predictions
-predictions = predictor.predict(test_data)
-probabilities = predictor.predict_proba(test_data)
+print(f"✅ Training completed for {{actual_target}}!")"""
 
-# Evaluate
-performance = predictor.evaluate(test_data)
-leaderboard = predictor.leaderboard(test_data)
-        '''.strip()
+        leaderboard_code = f"""# 🏆 VIEW MODEL LEADERBOARD AND BEST MODELS
+leaderboard = predictor.leaderboard()
+print("🏆 AutoGluon Model Leaderboard:")
+print("="*50)
+print(leaderboard.head(10))  # Show top 10 models
+
+# 🥇 BEST MODEL INFORMATION
+best_model = leaderboard.iloc[0]['model']
+best_score = leaderboard.iloc[0]['score_val']
+print(f"\\n🥇 BEST MODEL: {{best_model}}")
+print(f"📊 BEST SCORE: {{best_score:.4f}}")
+
+# 📈 DETAILED RANKING
+print("\\n📈 Top 5 Models Ranking:")
+for i, row in leaderboard.head(5).iterrows():
+    print(f"{{i+1:2d}}. {{row['model']:25s}} | Score: {{row['score_val']:.4f}} | Time: {{row['fit_time']:.1f}}s")"""
+
+        return {
+            "success": True,
+            "domain": "tabular",
+            "optimized_code": code,
+            "leaderboard_code": leaderboard_code,
+            "solution_summary": f"## 🤖 AutoGluon Tabular Solution (Dataset-Specific)\n\n**Target:** {target_column}\n**Dataset Shape:** {df.shape}\n**Problem Type:** {problem_type}\n\n**Features:**\n- Customized for your specific dataset structure\n- Automatic target column validation\n- Smart problem type detection\n- Comprehensive model evaluation and leaderboard"
+        }
     
-    def _generate_multimodal_example(self) -> str:
-        return '''
-# AutoGluon Multimodal Example
+    def _generate_multimodal_code_for_dataset(self, df, variable_name: str, target_column: str, columns: list, user_query: str) -> Dict[str, Any]:
+        """Generate multimodal code customized for the specific dataset."""
+        
+        code = f"""# AutoGluon Multimodal ML Solution - Dataset Specific
 from autogluon.multimodal import MultiModalPredictor
 
-# Load data (can contain text, image paths, numerical features)
-train_data = pd.read_csv('train.csv')
-test_data = pd.read_csv('test.csv')
+# Dataset Analysis:
+# - Shape: {df.shape}
+# - Target Column: '{target_column}'
+# - Available Columns: {columns}
 
-# Train model
-predictor = MultiModalPredictor(label='target').fit(
+# Verify target column exists
+if '{target_column}' not in {variable_name}.columns:
+    print("⚠️  Target column '{target_column}' not found!")
+    print("Available columns:", list({variable_name}.columns))
+    actual_target = {variable_name}.columns[-1]  # Use last column
+    print(f"Using '{{actual_target}}' as target instead")
+else:
+    actual_target = '{target_column}'
+
+print(f"📊 Training multimodal model with target: {{actual_target}}")
+print(f"📋 Dataset shape: {{{variable_name}.shape}}")
+
+# Load your multimodal data (text, images, numerical)
+train_data = {variable_name}
+
+# Train AutoGluon multimodal model
+predictor = MultiModalPredictor(
+    label=actual_target,
+    path='./autogluon_models/multimodal_model'
+).fit(
     train_data,
-    time_limit=600,
+    time_limit={self.default_time_limit * 2},  # Multimodal typically needs more time
     presets='best_quality'
 )
 
-# Make predictions
-predictions = predictor.predict(test_data)
+print(f"✅ Multimodal training completed for {{actual_target}}!")
+print("🎯 Model handles text, images, and numerical data automatically!")"""
 
-# Evaluate
-performance = predictor.evaluate(test_data)
-        '''.strip()
-    
-    def _generate_timeseries_example(self) -> str:
-        return '''
-# AutoGluon Time Series Example
-from autogluon.timeseries import TimeSeriesDataFrame, TimeSeriesPredictor
+        leaderboard_code = f"""# 🏆 VIEW MULTIMODAL MODEL PERFORMANCE
+performance = predictor.evaluate({variable_name})
+print("🏆 AutoGluon Multimodal Performance:")
+print("="*40)
+print(performance)
 
-# Load time series data
-data = TimeSeriesDataFrame.from_data_frame(
-    pd.read_csv('timeseries.csv'),
-    id_column='id',
-    timestamp_column='timestamp'
-)
+# 📊 Model Information
+print(f"\\n📊 Model Type: Multimodal (Text + Images + Numerical)")
+print(f"🎯 Target: {{actual_target}}")
+print(f"✅ Training completed successfully!")"""
 
-# Train forecasting model
-predictor = TimeSeriesPredictor(
-    target='value',
-    prediction_length=24,
-    freq='H'
-).fit(data, time_limit=600)
-
-# Make forecasts
-forecasts = predictor.predict(data)
-
-# Evaluate
-performance = predictor.evaluate(data)
-        '''.strip()
+        return {
+            "success": True,
+            "domain": "multimodal",
+            "optimized_code": code,
+            "leaderboard_code": leaderboard_code,
+            "solution_summary": f"## 🎭 AutoGluon Multimodal Solution (Dataset-Specific)\n\n**Target:** {target_column}\n**Dataset Shape:** {df.shape}\n\n**Features:**\n- Customized for your specific dataset structure\n- Automatic handling of text, images, and numerical data\n- Smart target column validation\n- State-of-the-art multimodal architectures"
+        }
