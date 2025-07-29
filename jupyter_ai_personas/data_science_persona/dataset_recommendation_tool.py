@@ -335,7 +335,7 @@ class UCIMLRepoSource:
             return []
     
     def _generate_comprehensive_search_strategies(self, user_query: str, domain: str) -> List[tuple]:
-        """Generate comprehensive search strategies to cover UCI's entire database"""
+        """Generate optimized search strategies (7 efficient strategies instead of 11+)"""
         strategies = []
         
         # Auto-detect primary filters
@@ -343,74 +343,54 @@ class UCIMLRepoSource:
         primary_task = self._detect_uci_task(user_query)
         primary_subject = self._detect_uci_subject(user_query)
         
-        # Strategy 1: User's query-specific search (if filters detected)
+        # Strategy 1: Query-specific search (most targeted)
         if primary_data_type or primary_task or primary_subject:
             params = (primary_data_type, primary_task, primary_subject)
             name = f"Query-specific ({primary_data_type}, {primary_task}, {primary_subject})"
             strategies.append((name, params))
         
-        # Strategy 2: Systematic search across all relevant data types
+        # Strategy 2: Primary data type + detected task (targeted)
+        if primary_data_type and primary_task:
+            params = (primary_data_type, primary_task, "")
+            strategies.append((f"Primary: {primary_data_type} + {primary_task}", params))
+        
+        # Strategy 3: Primary data type alone (broader coverage)
+        if primary_data_type:
+            params = (primary_data_type, "", "")
+            strategies.append((f"Primary DataType: {primary_data_type}", params))
+        
+        # Strategy 4: Secondary data type (backup if primary fails)
         relevant_data_types = []
         if domain == "Time-Series":
-            relevant_data_types = ["Time-Series", "Sequential", "Multivariate"]
+            relevant_data_types = ["Sequential", "Multivariate"]  # Exclude primary Time-Series
         elif domain in ["Multivariate", "Image", "Text"]:
-            relevant_data_types = ["Multivariate", "Text", "Image", "Tabular"]  
+            relevant_data_types = ["Tabular", "Text"] if primary_data_type != "Tabular" else ["Multivariate"]
         else:  # Tabular or other
-            relevant_data_types = ["Multivariate", "Tabular"]
+            relevant_data_types = ["Multivariate"] if primary_data_type != "Multivariate" else ["Tabular"]
         
-        for data_type in relevant_data_types:
-            # Try with primary task/subject
-            if primary_task or primary_subject:
-                params = (data_type, primary_task, primary_subject)
-                strategies.append((f"DataType: {data_type} + detected filters", params))
-            
-            # Try data type alone
-            params = (data_type, "", "")
-            strategies.append((f"DataType: {data_type} (broad)", params))
+        if relevant_data_types:
+            secondary_data_type = relevant_data_types[0]
+            params = (secondary_data_type, "", "")
+            strategies.append((f"Secondary DataType: {secondary_data_type}", params))
         
-        # Strategy 3: Search across all relevant tasks
-        relevant_tasks = []
-        if "forecast" in user_query or "predict" in user_query or "regression" in user_query:
-            relevant_tasks = ["Regression", "Classification"]
-        elif "classify" in user_query or "classification" in user_query:
-            relevant_tasks = ["Classification", "Regression"] 
-        elif "cluster" in user_query:
-            relevant_tasks = ["Clustering", "Classification"]
-        else:
-            relevant_tasks = ["Classification", "Regression", "Clustering"]
+        # Strategy 5: Primary task + best data type (task-focused)
+        if primary_task:
+            best_data_type = primary_data_type or "Multivariate"  # Use primary or default to multivariate
+            params = (best_data_type, primary_task, "")
+            strategies.append((f"Task-focused: {primary_task} + {best_data_type}", params))
         
-        for task in relevant_tasks[:2]:  # Limit to 2 most relevant
-            if primary_data_type:
-                params = (primary_data_type, task, "")
-                strategies.append((f"Task: {task} + {primary_data_type}", params))
-            else:
-                # Try with each relevant data type
-                for dt in relevant_data_types[:1]:  # Just first data type
-                    params = (dt, task, "")
-                    strategies.append((f"Task: {task} + {dt}", params))
+        # Strategy 6: Subject area (only if specifically detected, not generic)
+        if primary_subject and primary_subject != "":
+            params = ("", "", primary_subject)
+            strategies.append((f"Subject: {primary_subject}", params))
         
-        # Strategy 4: Search across relevant subject areas
-        relevant_subjects = []
-        if any(kw in user_query for kw in ['business', 'finance', 'customer', 'sales', 'marketing', 'stock']):
-            relevant_subjects = ["Business", "Social-Sciences"]
-        elif any(kw in user_query for kw in ['medical', 'health', 'biology', 'clinical']):
-            relevant_subjects = ["Life-Sciences", "Physical-Sciences"]
-        elif any(kw in user_query for kw in ['weather', 'climate', 'temperature', 'sensor']):
-            relevant_subjects = ["Physical-Sciences", "CS-Engineering"]
-        elif any(kw in user_query for kw in ['social', 'education', 'student', 'population']):
-            relevant_subjects = ["Social-Sciences", "Life-Sciences"]
-        else:
-            # For generic queries, search most common subjects
-            relevant_subjects = ["Business", "Life-Sciences", "Physical-Sciences", "Social-Sciences"]
+        # Strategy 7: Fallback with best generic combination (not unfiltered)
+        fallback_data_type = "Multivariate"  # Most common and broad
+        fallback_task = "Classification"     # Most common task
+        params = (fallback_data_type, fallback_task, "")
+        strategies.append((f"Fallback: {fallback_data_type} + {fallback_task}", params))
         
-        for subject in relevant_subjects[:3]:  # Limit to 3 most relevant
-            params = ("", "", subject)
-            strategies.append((f"Subject: {subject} (broad)", params))
-        
-        # Strategy 5: Unfiltered comprehensive search (last resort)
-        strategies.append(("Unfiltered (all datasets)", self.datasets_url))
-        
-        logger.info(f"🎯 Generated {len(strategies)} comprehensive search strategies")
+        logger.info(f"🎯 Generated {len(strategies)} optimized search strategies")
         return strategies
     
     def _parse_and_score_dataset(self, link, user_query: str, seen_titles: set, search_domain: str = None):
