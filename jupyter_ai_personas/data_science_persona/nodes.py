@@ -35,7 +35,6 @@ class DecideAction(Node):
             "notebook_path": shared.get("notebook_path", ""),
             "history": shared.get("history", ""),
             "previous_actions": shared.get("action_history", []),
-            # Data context for decision making
             "has_data": shared.get("has_data", False),
             "primary_domain": shared.get("primary_domain", "unknown"),
             "data_summary": shared.get("data_analysis", {}).get("data_summary", "")
@@ -105,10 +104,12 @@ class DecideAction(Node):
 
                 Based on this context, decide what action to take. You MUST respond in valid YAML format.
 
-                Choose ONE action from: analyze_data, generate_code, explain_concept, find_issues, create_visualization, debug_code, train_ml_model, complete_analysis, greeting, recommend_datasets
+                Choose ONE action from: analyze_data, generate_code, explain_concept, find_issues, create_visualization, debug_code, 
+                train_ml_model, complete_analysis, greeting, recommend_datasets
 
-                The action train_ml_model should be chosen only if the user specifically asks to train or fit a model, or if they are asking to find the best model for the current stage.
-                
+                The action train_ml_model should be chosen only if the user specifically asks to train or fit a model, or if they are 
+                asking to find the best model for the current stage.
+
                 IMPORTANT: Respond with ONLY valid YAML. Do not include any other text.
 
                 ```yaml

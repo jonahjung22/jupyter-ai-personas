@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 class DataScienceAgent(Flow):
     """
-    PocketFlow Agent for Data Science Analysis
+    PocketFlow Agent that coordiantes the workflow for Data Science Analysis
     """
     
     def __init__(self, model_client=None):
