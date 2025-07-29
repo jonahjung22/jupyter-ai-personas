@@ -76,7 +76,10 @@ data_science = [
     "chromadb",
     "sentence-transformers",
     "langchain-core",
-    "autogluon"
+    "autogluon",
+    "beautifulsoup4",          # For UCI ML Repository web scraping
+    "requests",                # For HTTP requests to UCI
+    "pyyaml"                   # For YAML parsing in decision nodes
 ]
 
 all = ["jupyter-ai-personas[finance,emoji,software_team,data_analytics,pr_review,data_science]"]
