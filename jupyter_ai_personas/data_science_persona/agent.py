@@ -212,6 +212,9 @@ class DataScienceAgent(Flow):
                 r"Index:\s*\[(.*?)\]",           # Index: ['col1', 'col2']
                 r"Columns:\s*\[(.*?)\]",         # Columns: ['col1', 'col2'] 
                 r"columns=\[(.*?)\]",            # columns=['col1', 'col2']
+                r"\.columns\s*=\s*\[(.*?)\]",    # df.columns = ['col1', 'col2']
+                r"columns:\s*\[(.*?)\]",         # columns: ['col1', 'col2']
+                r"Index\(.*?\[(.*?)\]",          # Index(...['col1', 'col2'])
             ]
             
             columns_found = []
@@ -292,8 +295,10 @@ class DataScienceAgent(Flow):
             
             # Look for target column hints
             target_patterns = [
-                r"target\s*=", r"y\s*=", r"label\s*=", 
-                r"predict\s*\(\s*['\"]?(\w+)['\"]?\s*\)"
+                r"target\s*=\s*['\"]?(\w+)['\"]?",      # target = 'column_name'
+                r"y\s*=\s*.*?\[?\s*['\"](\w+)['\"]",   # y = df['column_name']
+                r"label\s*=\s*['\"]?(\w+)['\"]?",      # label = 'column_name' 
+                r"predict\s*\(\s*['\"]?(\w+)['\"]?\s*\)"  # predict('column_name')
             ]
             
             for pattern in target_patterns:
@@ -301,6 +306,8 @@ class DataScienceAgent(Flow):
                 if matches:
                     if isinstance(matches[0], str) and matches[0]:
                         analysis_result["target_column"] = matches[0]
+                        logger.info(f"🎯 Found target column: {matches[0]}")
+                        print(f"🎯 TARGET TRACKER: Found '{matches[0]}'")
                     break
             
             # Enhance data summary

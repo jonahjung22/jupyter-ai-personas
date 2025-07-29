@@ -239,24 +239,26 @@ class UCIMLRepoSource:
             # Comprehensive search strategy: Try multiple filter combinations systematically
             search_strategies = self._generate_comprehensive_search_strategies(user_query, domain)
             
+            target_dataset_count = max_results * 20  # Target 20x results for good selection
+            
             for i, (strategy_name, base_params) in enumerate(search_strategies, 1):
                 try:
                     logger.info(f"📋 Strategy {i}: {strategy_name}")
                     
                     # For each strategy, try multiple pages to get more datasets
                     strategy_datasets = 0
-                    for page in range(3):  # Try up to 3 pages (150 datasets) per strategy
-                        skip = page * 50
+                    for page in range(10):  # Keep 10 pages per strategy for good data volume
+                        skip = page * 100
                         
                         # Build URL with pagination
                         if isinstance(base_params, str):  # It's already a URL
                             if '?' in base_params:
-                                url = f"{base_params}&skip={skip}&take=50"
+                                url = f"{base_params}&skip={skip}&take=100"
                             else:
-                                url = f"{base_params}?skip={skip}&take=50&sort=desc&orderBy=NumHits"
+                                url = f"{base_params}?skip={skip}&take=100&sort=desc&orderBy=NumHits"
                         else:  # It's parameters
                             data_type, task, subject = base_params
-                            url = self._build_filter_url(data_type, task, subject, skip=skip, take=50)
+                            url = self._build_filter_url(data_type, task, subject, skip=skip, take=100)
                         
                         logger.debug(f"    Page {page+1}: {url}")
                         
@@ -282,16 +284,12 @@ class UCIMLRepoSource:
                                 page_datasets += 1
                         
                         logger.debug(f"    Processed {page_datasets} new datasets from page {page+1}")
-                        
-                        # Stop pagination if we got fewer results (likely last page)
-                        if len(dataset_links) < 20:  # UCI typically shows 20 per page
-                            break
                     
                     logger.info(f"    Total from strategy: {strategy_datasets} datasets")
                     
-                    # Stop early if we have found many good candidates
-                    if len(all_datasets) > max_results * 20:  # 20x buffer for good selection
-                        logger.info(f"📊 Found {len(all_datasets)} datasets, sufficient for ranking")
+                    # Stop early if we have enough datasets from effective strategies  
+                    if len(all_datasets) >= target_dataset_count:
+                        logger.info(f"📊 Found {len(all_datasets)} datasets, stopping early to avoid inefficient strategies")
                         break
                         
                 except Exception as e:
@@ -492,14 +490,14 @@ class UCIMLRepoSource:
         # Default to none (no subject filter) for better variety
         return ''
     
-    def _build_filter_url(self, data_type: str, task: str, subject: str, skip: int = 0, take: int = 50) -> str:
+    def _build_filter_url(self, data_type: str, task: str, subject: str, skip: int = 0, take: int = 100) -> str:
         """Build UCI filter URL using correct API format"""
         import urllib.parse
         
         base_url = "https://archive.ics.uci.edu/datasets"
         params = {
             'skip': skip,
-            'take': take,  # Get more datasets per request
+            'take': take,  # Get up to 100 datasets per request
             'sort': 'desc',
             'orderBy': 'NumHits',  # Sort by popularity/hits
             'search': ''
@@ -738,13 +736,17 @@ class UCIMLRepoSource:
             if len(keyword) > 3 and keyword.lower() in searchable_text:
                 keyword_matches += 1
         
-        # Be more selective - require either important matches or significant keyword overlap
+        # More lenient matching - accept datasets with any reasonable match
         if important_matches:
             return True
-        elif keyword_matches >= 2:  # Need at least 2 keyword matches
+        elif keyword_matches >= 1:  # Reduced from 2 to 1 keyword match
             return True
-        elif domain == "Tabular" and keyword_matches > 0:
+        elif domain in ["Tabular", "Multivariate"] and keyword_matches > 0:
             return True
         else:
+            # For generic queries, accept more datasets
+            generic_terms = ['recommend', 'dataset', 'data']
+            if any(term in ' '.join(keywords) for term in generic_terms):
+                return True
             return False
     

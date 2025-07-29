@@ -10,32 +10,7 @@ class AutoGluonTool:
     """Simplified AutoGluon tool for generating contextual ML code."""
     
     def __init__(self, default_time_limit: int = 120):
-        self.availability = self._check_availability()
         self.default_time_limit = default_time_limit  # 120 for quick testing, 600 for optimal training
-    
-    def _check_availability(self) -> Dict[str, bool]:
-        """Check which AutoGluon domains are available."""
-        availability = {"tabular": False, "multimodal": False, "timeseries": False}
-        
-        try:
-            from autogluon.tabular import TabularPredictor
-            availability["tabular"] = True
-        except ImportError:
-            pass
-        
-        try:
-            from autogluon.multimodal import MultiModalPredictor
-            availability["multimodal"] = True
-        except ImportError:
-            pass
-        
-        try:
-            from autogluon.timeseries import TimeSeriesPredictor
-            availability["timeseries"] = True
-        except ImportError:
-            pass
-        
-        return availability
     
     def get_status(self) -> Dict[str, Any]:
         """Get tool status and installation information."""
@@ -413,7 +388,7 @@ ts_data_formatted = ts_data_formatted.rename(columns={{timestamp_col: 'timestamp
 cols = ['item_id', 'timestamp'] + [col for col in ts_data_formatted.columns if col not in ['item_id', 'timestamp']]
 ts_data_formatted = ts_data_formatted[cols]
 
-print("📊 Dataset-specific formatting completed:")
+print("Dataset-specific formatting completed:")
 print(f"Original shape: {{len({variable_name})}}, {{len({variable_name}.columns)}}")
 print(f"Target column: '{target_column}'")
 print(f"Formatted columns: {{list(ts_data_formatted.columns)}}")
@@ -448,7 +423,7 @@ predictor = TimeSeriesPredictor(
     presets='best_quality'
 )
 
-print(f"🔮 Generated forecasts for {{len(predictor.predict(ts_autogluon))}} steps")
+print(f"Generated forecasts for {{len(predictor.predict(ts_autogluon))}} steps")
 print("✅ Time series forecasting completed!")"""
 
         leaderboard_code = f"""# 🏆 VIEW TIME SERIES MODEL PERFORMANCE AND RANKINGS
@@ -460,30 +435,30 @@ print("="*50)
 # Get training summary and model information
 try:
     summary = predictor.fit_summary()
-    print("📋 Training Summary:")
+    print("Training Summary:")
     print(summary)
 except:
-    print("📋 Training summary not available")
+    print("Training summary not available")
 
 # Best model information - TimeSeriesPredictor doesn't expose individual model names
 print(f"\\n🥇 Best Model: AutoGluon Ensemble (WeightedEnsemble)")
 
 # Model performance evaluation
 performance = predictor.evaluate(ts_autogluon)
-print("\\n📊 Model Performance Metrics:")
+print("\\nModel Performance Metrics:")
 print(performance)
 
 # Generate forecasts
 forecasts = predictor.predict(ts_autogluon)
-print(f"\\n🔮 Forecast Summary:")
-print(f"📈 Generated {{len(forecasts)}} forecast steps")
-print(f"🎯 Target: {{actual_target}}")
-print(f"📊 Prediction Length: {prediction_length} steps")
+print(f"\\nForecast Summary:")
+print(f"Generated {{len(forecasts)}} forecast steps")
+print(f"Target: {{actual_target}}")
+print(f"Prediction Length: {prediction_length} steps")
 
-print(f"\\n📈 Sample Forecasts:")
+print(f"\\nSample Forecasts:")
 print(forecasts.head(10))
 
-print(f"\\n🎯 Model Selection:")
+print(f"\\nModel Selection:")
 print("AutoGluon automatically selected the best performing model from the ensemble")
 print("The WeightedEnsemble combines multiple models for optimal performance")"""
 
@@ -492,7 +467,7 @@ print("The WeightedEnsemble combines multiple models for optimal performance")""
             "domain": "timeseries",
             "optimized_code": code,
             "leaderboard_code": leaderboard_code,
-            "solution_summary": f"## 🔮 AutoGluon Time Series Solution (Dataset-Specific)\n\n**Target:** {target_column}\n**Dataset Shape:** {df.shape}\n**Forecast Length:** {prediction_length} steps\n\n**Features:**\n- Customized for your specific dataset structure\n- Automatic date/time column detection\n- Robust target column validation\n- Production-ready forecasts"
+            "solution_summary": f"## 🔮 AutoGluon Time Series Solution \n\n**Target:** {target_column}\n**Dataset Shape:** {df.shape}\n**Forecast Length:** {prediction_length} steps\n\n**Features:**\n- Customized for your specific dataset structure\n- Automatic date/time column detection\n- Robust target column validation\n- Production-ready forecasts"
         }
     
     def _generate_tabular_code_for_dataset(self, df, variable_name: str, target_column: str, columns: list, user_query: str) -> Dict[str, Any]:
@@ -536,8 +511,8 @@ if '{target_column}' not in {variable_name}.columns:
 else:
     actual_target = '{target_column}'
 
-print(f"📊 Training with target column: {{actual_target}}")
-print(f"📋 Dataset shape: {{{variable_name}.shape}}")
+print(f"Training with target column: {{actual_target}}")
+print(f"Dataset shape: {{{variable_name}.shape}}")
 
 # Load your data
 train_data = TabularDataset({variable_name})
@@ -577,7 +552,7 @@ for i, row in leaderboard.head(5).iterrows():
             "domain": "tabular",
             "optimized_code": code,
             "leaderboard_code": leaderboard_code,
-            "solution_summary": f"## 🤖 AutoGluon Tabular Solution (Dataset-Specific)\n\n**Target:** {target_column}\n**Dataset Shape:** {df.shape}\n**Problem Type:** {problem_type}\n\n**Features:**\n- Customized for your specific dataset structure\n- Automatic target column validation\n- Smart problem type detection\n- Comprehensive model evaluation and leaderboard"
+            "solution_summary": f"## 🤖 AutoGluon Tabular Solution \n\n**Target:** {target_column}\n**Dataset Shape:** {df.shape}\n**Problem Type:** {problem_type}\n\n**Features:**\n- Customized for your specific dataset structure\n- Automatic target column validation\n- Smart problem type detection\n- Comprehensive model evaluation and leaderboard"
         }
     
     def _generate_multimodal_code_for_dataset(self, df, variable_name: str, target_column: str, columns: list, user_query: str) -> Dict[str, Any]:
@@ -600,8 +575,8 @@ if '{target_column}' not in {variable_name}.columns:
 else:
     actual_target = '{target_column}'
 
-print(f"📊 Training multimodal model with target: {{actual_target}}")
-print(f"📋 Dataset shape: {{{variable_name}.shape}}")
+print(f"Training multimodal model with target: {{actual_target}}")
+print(f"Dataset shape: {{{variable_name}.shape}}")
 
 # Load your multimodal data (text, images, numerical)
 train_data = {variable_name}
@@ -617,9 +592,9 @@ predictor = MultiModalPredictor(
 )
 
 print(f"✅ Multimodal training completed for {{actual_target}}!")
-print("🎯 Model handles text, images, and numerical data automatically!")"""
+print("Model handles text, images, and numerical data automatically!")"""
 
-        leaderboard_code = f"""# 🏆 VIEW MULTIMODAL MODEL PERFORMANCE
+        leaderboard_code = f"""#VIEW MULTIMODAL MODEL PERFORMANCE
 performance = predictor.evaluate({variable_name})
 print("🏆 AutoGluon Multimodal Performance:")
 print("="*40)
@@ -635,5 +610,5 @@ print(f"✅ Training completed successfully!")"""
             "domain": "multimodal",
             "optimized_code": code,
             "leaderboard_code": leaderboard_code,
-            "solution_summary": f"## 🎭 AutoGluon Multimodal Solution (Dataset-Specific)\n\n**Target:** {target_column}\n**Dataset Shape:** {df.shape}\n\n**Features:**\n- Customized for your specific dataset structure\n- Automatic handling of text, images, and numerical data\n- Smart target column validation\n- State-of-the-art multimodal architectures"
+            "solution_summary": f"## AutoGluon Multimodal Solution \n\n**Target:** {target_column}\n**Dataset Shape:** {df.shape}\n\n**Features:**\n- Customized for your specific dataset structure\n- Automatic handling of text, images, and numerical data\n- Smart target column validation\n- State-of-the-art multimodal architectures"
         }

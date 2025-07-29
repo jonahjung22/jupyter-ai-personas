@@ -107,6 +107,8 @@ class DecideAction(Node):
 
                 Choose ONE action from: analyze_data, generate_code, explain_concept, find_issues, create_visualization, debug_code, train_ml_model, complete_analysis, greeting, recommend_datasets
 
+                The action train_ml_model should be chosen only if the user specifically asks to train or fit a model, or if they are asking to find the best model for the current stage.
+                
                 IMPORTANT: Respond with ONLY valid YAML. Do not include any other text.
 
                 ```yaml
@@ -526,10 +528,6 @@ class MLTrainingNode(Node):
     def exec(self, prep_res):
         """Execute automated ML training - assumes data exists"""
         try:
-            # Check AutoGluon availability
-            status = self.autogluon_tool.get_status()
-            if not status.get("any_available", False):
-                return self._fallback_ml_training(prep_res)
             
             # Use shared data analysis
             data_analysis = prep_res.get("data_analysis", {})
@@ -574,18 +572,30 @@ class MLTrainingNode(Node):
             logger.info(f"🤖 Using simplified AutoGluon tool for {training_type} domain")
             print(f"🤖 AUTOGLUON: Generating optimized {training_type} code")
             
-            # Try to extract actual DataFrame from notebook content first
-            logger.info("🔍 Attempting to extract DataFrame from notebook content")
-            notebook_data = self._extract_data_from_notebook(prep_res.get("notebook_content", ""))
+            # Use agent's data analysis instead of extracting DataFrame
+            logger.info("🔍 Using agent's data analysis for code generation")
             
-            if notebook_data.get("success") and 'dataframe' in notebook_data:
-                logger.info("✅ Found DataFrame - generating dataset-specific AutoGluon code")
-                print("✅ DATASET-SPECIFIC: Creating customized AutoGluon code for your data")
+            if data_analysis.get("success") and data_analysis.get("data_found"):
+                logger.info("✅ Using agent's data analysis - generating dataset-specific AutoGluon code")
+                print("✅ DATASET-SPECIFIC: Creating customized AutoGluon code based on agent analysis")
+                
+                # Convert agent's analysis to format expected by AutoGluon tool
+                mock_notebook_data = {
+                    "success": True,
+                    "variable_name": data_analysis.get("variable_name", "df"),
+                    "target_column": data_analysis.get("target_column"),
+                    "problem_type": data_analysis.get("problem_type", "auto"),
+                    "dataframe_info": {
+                        "shape": data_analysis.get("characteristics", {}).get("shape", (100, 10)),
+                        "columns": data_analysis.get("characteristics", {}).get("columns", []),
+                        "dtypes": {}
+                    }
+                }
                 
                 try:
-                    # Generate dataset-specific code using the actual DataFrame
+                    # Generate dataset-specific code using agent's analysis
                     recommendation = self.autogluon_tool.generate_dataset_specific_code(
-                        notebook_data=notebook_data,
+                        notebook_data=mock_notebook_data,
                         domain=autogluon_domain,
                         user_query=prep_res.get("user_query", "")
                     )
