@@ -1,6 +1,4 @@
 """
-rag_integration_tool.py
-
 Agno tool wrapper for the Python Data Science Handbook RAG system.
 Provides clean integration with Agno agents and error handling.
 """
@@ -291,7 +289,6 @@ class RAGSearchTool(Toolkit):
                 "error": f"Rebuild failed: {str(e)}"
             })
 
-
 # Factory function for easy initialization
 def create_simple_rag_tools(force_rebuild: bool = False) -> RAGSearchTool:
     """
@@ -304,7 +301,6 @@ def create_simple_rag_tools(force_rebuild: bool = False) -> RAGSearchTool:
         RAGSearchTool instance ready for use with Agno agents
     """
     return RAGSearchTool(force_rebuild=force_rebuild)
-
 
 # Quick test function
 def test_rag_integration():
@@ -329,7 +325,6 @@ def test_rag_integration():
     except Exception as e:
         print(f"RAG integration test failed with exception: {e}")
         return False
-
 
 if __name__ == "__main__":
     test_rag_integration()

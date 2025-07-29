@@ -1,7 +1,5 @@
 # Context Retrieval Persona
 
-A sophisticated Jupyter AI persona that analyzes your data science notebooks and provides contextual recommendations using Retrieval-Augmented Generation (RAG) from the Python Data Science Handbook.
-
 ## Overview
 
 The Context Retriever Persona is a multi-agent system that understands your current data science work and finds relevant resources from the comprehensive Python Data Science Handbook using semantic search. It consists of three specialized agents working together to provide actionable insights.

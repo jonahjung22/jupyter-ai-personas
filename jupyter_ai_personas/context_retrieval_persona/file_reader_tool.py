@@ -1,15 +1,7 @@
-"""
-File Reader Tool for retrieving complete notebook content.
-
-This tool extracts all content from Jupyter notebooks including cells, 
-outputs, and metadata to provide comprehensive context for analysis.
-"""
-
 import json
 import os
 from typing import Dict, Any, List, Optional
 from agno.tools import Toolkit
-
 
 class NotebookReaderTool(Toolkit):
     """Tool for reading and extracting complete content from Jupyter notebooks."""

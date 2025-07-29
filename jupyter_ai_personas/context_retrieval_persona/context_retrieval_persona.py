@@ -1,12 +1,3 @@
-
-"""
-Context Retrieval Specialist Persona - Simplified Version
-
-Analyzes user prompts and jupyter notebook code to understand their current work and objectives,
-then searches through the Python Data Science Handbook using RAG to find the most relevant 
-documentation, examples, best practices, and technical resources.
-"""
-
 from jupyter_ai.personas.base_persona import BasePersona, PersonaDefaults
 from jupyterlab_chat.models import Message
 from jupyter_ai.history import YChatHistory

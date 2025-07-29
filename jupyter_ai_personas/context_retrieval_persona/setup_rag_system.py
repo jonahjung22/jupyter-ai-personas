@@ -1,10 +1,3 @@
-"""
-setup_rag_system.py
-
-Setup script for the Python Data Science Handbook RAG system.
-Run this script to initialize everything and verify it's working.
-"""
-
 import os
 import sys
 from pathlib import Path

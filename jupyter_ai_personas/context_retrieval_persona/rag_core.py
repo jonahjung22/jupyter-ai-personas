@@ -1,7 +1,5 @@
 """
-rag_core.py
-
-Core RAG system for Python Data Science Handbook notebooks.
+RAG system for Python Data Science Handbook notebooks.
 Handles repository cloning, content extraction, embedding, and vector storage.
 """
 
@@ -436,7 +434,6 @@ class PythonDSHandbookRAG:
         logger.info("RAG system initialization completed successfully!")
         return True
 
-
 # Global instance cache for singleton behavior
 _rag_instance_cache = {}
 
@@ -482,7 +479,6 @@ def test_rag_system():
     else:
         logger.error("Test failed - no results found")
         return False
-
 
 if __name__ == "__main__":
     test_rag_system()
