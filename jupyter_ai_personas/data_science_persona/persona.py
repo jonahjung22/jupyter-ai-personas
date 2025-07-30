@@ -1,21 +1,16 @@
 import logging
-from typing import Dict, Any, AsyncGenerator, Optional
+from typing import Dict, Any, AsyncGenerator
 from datetime import datetime
-
 from jupyter_ai.personas.base_persona import BasePersona, PersonaDefaults
 from jupyterlab_chat.models import Message
 from jupyter_ai.history import YChatHistory
 from langchain_core.messages import HumanMessage
 from agno.models.aws import AwsBedrock
 import boto3
-
 from .agent import DataScienceAgent
 
 logger = logging.getLogger(__name__)
-
-# Session for AWS Bedrock
 session = boto3.Session()
-
 
 class DataSciencePersona(BasePersona):
     

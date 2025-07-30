@@ -1,4 +1,9 @@
 
+# CHANGED: Modified generate_dataset_specific_code() to handle both actual DataFrame objects
+# and metadata structures (dataframe_info) from agent analysis. This fixes the "no valid 
+# dataset detected" error when MLTrainingNode passes metadata instead of DataFrame objects.
+# Updated method signatures to use 'shape' parameter instead of 'df' for template generation.
+
 import logging
 import tempfile
 import os
@@ -7,7 +12,7 @@ from typing import Dict, Any
 logger = logging.getLogger(__name__)
 
 class AutoGluonTool:
-    """Simplified AutoGluon tool for generating contextual ML code."""
+    """AutoGluon tool for ML code generation with efficient template-based approach."""
     
     def __init__(self, default_time_limit: int = 120):
         self.default_time_limit = default_time_limit  # 120 for quick testing, 600 for optimal training
@@ -43,31 +48,42 @@ class AutoGluonTool:
     def generate_dataset_specific_code(self, notebook_data: Dict[str, Any], domain: str, user_query: str = "") -> Dict[str, Any]:
         """Generate AutoGluon code customized for the specific dataset structure."""
         try:
-            if not notebook_data.get("success") or "dataframe" not in notebook_data:
+            if not notebook_data.get("success"):
                 return {"success": False, "error": "No valid dataset provided"}
-            
-            df = notebook_data["dataframe"]
-            variable_name = notebook_data.get("variable_name", "df")
             
             logger.info(f"📊 Analyzing dataset structure for {domain} domain")
             
-            # Analyze the actual DataFrame structure
-            columns = list(df.columns)
-            shape = df.shape
+            # Handle both actual DataFrame and metadata
+            if "dataframe" in notebook_data:
+                # Real DataFrame - extract info directly
+                df = notebook_data["dataframe"]
+                columns = list(df.columns)
+                shape = df.shape
+                variable_name = notebook_data.get("variable_name", "df")
+                target_column = self._detect_target_column(df, notebook_data, user_query)
+                logger.info("📊 Using actual DataFrame for analysis")
+            elif "dataframe_info" in notebook_data:
+                # Metadata - use pre-analyzed info
+                df_info = notebook_data["dataframe_info"]
+                columns = df_info.get("columns", [])
+                shape = df_info.get("shape", (100, 10))
+                variable_name = notebook_data.get("variable_name", "df")
+                target_column = notebook_data.get("target_column", "target")
+                logger.info("📊 Using dataset metadata for analysis")
+            else:
+                return {"success": False, "error": "No dataset or dataset info provided"}
             
-            # Detect target column
-            target_column = self._detect_target_column(df, notebook_data, user_query)
-            
-            logger.info(f"🎯 Detected target column: {target_column}")
+            logger.info(f"🎯 Target column: {target_column}")
             logger.info(f"📋 Dataset shape: {shape}")
             logger.info(f"📊 Columns: {columns}")
             
+            # Template-based generation for efficiency
             if domain == "timeseries":
-                return self._generate_timeseries_code_for_dataset(df, variable_name, target_column, columns, user_query)
+                return self._generate_timeseries_code_for_dataset(shape, variable_name, target_column, columns, user_query)
             elif domain == "tabular":
-                return self._generate_tabular_code_for_dataset(df, variable_name, target_column, columns, user_query)
+                return self._generate_tabular_code_for_dataset(shape, variable_name, target_column, columns, user_query)
             elif domain == "multimodal":
-                return self._generate_multimodal_code_for_dataset(df, variable_name, target_column, columns, user_query)
+                return self._generate_multimodal_code_for_dataset(shape, variable_name, target_column, columns, user_query)
             else:
                 return {"success": False, "error": f"Unsupported domain: {domain}"}
                 
@@ -102,6 +118,7 @@ class AutoGluonTool:
         
         # Fallback to last column
         return df.columns[-1] if len(df.columns) > 0 else 'target'
+    
     
     def train_tabular_model(self, data, target_column: str, problem_type: str = "auto", 
                           time_limit: int = 600, presets: str = "best_quality") -> Dict[str, Any]:
@@ -334,7 +351,7 @@ class AutoGluonTool:
         else:
             return "## ✅ Training Completed\n\nModel training finished successfully."
     
-    def _generate_timeseries_code_for_dataset(self, df, variable_name: str, target_column: str, columns: list, user_query: str) -> Dict[str, Any]:
+    def _generate_timeseries_code_for_dataset(self, shape, variable_name: str, target_column: str, columns: list, user_query: str) -> Dict[str, Any]:
         """Generate time series code customized for the specific dataset."""
         
         # Determine prediction length from query
@@ -347,7 +364,6 @@ class AutoGluonTool:
             prediction_length = 12
         
         # Analyze the dataset structure
-        has_date_index = hasattr(df.index, 'dtype') and 'datetime' in str(df.index.dtype)
         date_columns = [col for col in columns if 'date' in col.lower() or 'time' in col.lower()]
         
         code = f"""# AutoGluon Time Series Forecasting Solution - Dataset Specific
@@ -355,9 +371,8 @@ from autogluon.timeseries import TimeSeriesDataFrame, TimeSeriesPredictor
 import pandas as pd
 
 # Dataset Analysis:
-# - Shape: {df.shape}
+# - Shape: {shape}
 # - Target Column: '{target_column}'
-# - Date Index: {has_date_index}
 # - Available Columns: {columns}
 
 # Prepare time series data for AutoGluon
@@ -467,31 +482,23 @@ print("The WeightedEnsemble combines multiple models for optimal performance")""
             "domain": "timeseries",
             "optimized_code": code,
             "leaderboard_code": leaderboard_code,
-            "solution_summary": f"## 🔮 AutoGluon Time Series Solution \n\n**Target:** {target_column}\n**Dataset Shape:** {df.shape}\n**Forecast Length:** {prediction_length} steps\n\n**Features:**\n- Customized for your specific dataset structure\n- Automatic date/time column detection\n- Robust target column validation\n- Production-ready forecasts"
+            "solution_summary": f"## 🔮 AutoGluon Time Series Solution \n\n**Target:** {target_column}\n**Dataset Shape:** {shape}\n**Forecast Length:** {prediction_length} steps\n\n**Features:**\n- Customized for your specific dataset structure\n- Automatic date/time column detection\n- Robust target column validation\n- Production-ready forecasts"
         }
     
-    def _generate_tabular_code_for_dataset(self, df, variable_name: str, target_column: str, columns: list, user_query: str) -> Dict[str, Any]:
+    def _generate_tabular_code_for_dataset(self, shape, variable_name: str, target_column: str, columns: list, user_query: str) -> Dict[str, Any]:
         """Generate tabular code customized for the specific dataset."""
         
-        # Determine problem type from data and query
-        problem_type = "auto"
-        if any(word in user_query.lower() for word in ["classify", "classification", "category"]):
-            problem_type = "classification"
-        elif any(word in user_query.lower() for word in ["regression", "predict", "estimate"]):
+        # Determine problem type from data and query using AutoGluon's valid types
+        problem_type = "auto"  # Let AutoGluon auto-detect
+        if any(word in user_query.lower() for word in ["regression", "predict", "estimate", "continuous"]):
             problem_type = "regression"
-        elif target_column in df.columns:
-            # Auto-detect based on target column characteristics
-            unique_ratio = len(df[target_column].unique()) / len(df)
-            if unique_ratio < 0.05:  # Less than 5% unique values suggests classification
-                problem_type = "classification"
-            else:
-                problem_type = "regression"
+        # Note: AutoGluon will auto-detect binary vs multiclass for classification
 
         code = f"""# AutoGluon Tabular ML Solution - Dataset Specific
 from autogluon.tabular import TabularDataset, TabularPredictor
 
 # Dataset Analysis:
-# - Shape: {df.shape}
+# - Shape: {shape}
 # - Target Column: '{target_column}'
 # - Available Columns: {columns}
 # - Problem Type: {problem_type}
@@ -552,17 +559,17 @@ for i, row in leaderboard.head(5).iterrows():
             "domain": "tabular",
             "optimized_code": code,
             "leaderboard_code": leaderboard_code,
-            "solution_summary": f"## 🤖 AutoGluon Tabular Solution \n\n**Target:** {target_column}\n**Dataset Shape:** {df.shape}\n**Problem Type:** {problem_type}\n\n**Features:**\n- Customized for your specific dataset structure\n- Automatic target column validation\n- Smart problem type detection\n- Comprehensive model evaluation and leaderboard"
+            "solution_summary": f"## 🤖 AutoGluon Tabular Solution \n\n**Target:** {target_column}\n**Dataset Shape:** {shape}\n**Problem Type:** {problem_type}\n\n**Features:**\n- Customized for your specific dataset structure\n- Automatic target column validation\n- Smart problem type detection\n- Comprehensive model evaluation and leaderboard"
         }
     
-    def _generate_multimodal_code_for_dataset(self, df, variable_name: str, target_column: str, columns: list, user_query: str) -> Dict[str, Any]:
+    def _generate_multimodal_code_for_dataset(self, shape, variable_name: str, target_column: str, columns: list, user_query: str) -> Dict[str, Any]:
         """Generate multimodal code customized for the specific dataset."""
         
         code = f"""# AutoGluon Multimodal ML Solution - Dataset Specific
 from autogluon.multimodal import MultiModalPredictor
 
 # Dataset Analysis:
-# - Shape: {df.shape}
+# - Shape: {shape}
 # - Target Column: '{target_column}'
 # - Available Columns: {columns}
 
@@ -610,5 +617,5 @@ print(f"✅ Training completed successfully!")"""
             "domain": "multimodal",
             "optimized_code": code,
             "leaderboard_code": leaderboard_code,
-            "solution_summary": f"## AutoGluon Multimodal Solution \n\n**Target:** {target_column}\n**Dataset Shape:** {df.shape}\n\n**Features:**\n- Customized for your specific dataset structure\n- Automatic handling of text, images, and numerical data\n- Smart target column validation\n- State-of-the-art multimodal architectures"
+            "solution_summary": f"## AutoGluon Multimodal Solution \n\n**Target:** {target_column}\n**Dataset Shape:** {shape}\n\n**Features:**\n- Customized for your specific dataset structure\n- Automatic handling of text, images, and numerical data\n- Smart target column validation\n- State-of-the-art multimodal architectures"
         }

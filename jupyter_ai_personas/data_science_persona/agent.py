@@ -1,7 +1,6 @@
 import logging
 import re
 from pathlib import Path
-from typing import Dict, Any
 
 try:
     from .pocketflow import Flow
@@ -18,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 class DataScienceAgent(Flow):
     """
-    PocketFlow Agent that coordiantes the workflow for Data Science Analysis
+    PocketFlow Agent that coordinates the workflow for Data Science Analysis
     """
     
     def __init__(self, model_client=None):

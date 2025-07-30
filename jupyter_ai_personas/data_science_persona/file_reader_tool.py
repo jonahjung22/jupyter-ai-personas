@@ -1,8 +1,7 @@
 import json
 import os
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 from agno.tools import Toolkit
-
 
 class NotebookReaderTool(Toolkit):
     """Tool for reading and extracting complete content from Jupyter notebooks."""
