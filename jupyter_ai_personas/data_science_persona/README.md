@@ -104,8 +104,6 @@ best_score = leaderboard.iloc[0]['score_val']
 print(f"\\n🥇 BEST MODEL: {best_model}")
 print(f"📊 BEST SCORE: {best_score:.4f}")
 ```
-"""
-```
 
 ### **2. Time Series Forecasting**
 ```python
@@ -156,8 +154,6 @@ predictor = TimeSeriesPredictor(
     presets='best_quality'
 )
 ```
-"""
-```
 
 ### **3. Multimodal Learning**
 ```python
@@ -196,8 +192,6 @@ predictor = MultiModalPredictor(
 
 print("✅ Multimodal training completed!")
 print("🎯 Model handles text, images, and numerical data automatically!")
-```
-"""
 ```
 
 ### **4. Dataset Recommendations**
