@@ -125,12 +125,12 @@ class DataScienceAgent(Flow):
             return {
                 "success": False,
                 "error": "No notebook content available",
-                "primary_domain": "tabular"  # Safe fallback
+                "primary_domain": "Tabular"  # Safe fallback
             }
         
         try:
             # Analyze the notebook content for data characteristics
-            analysis = self._analyze_notebook_data_characteristics(notebook_content)
+            analysis = self._analyze_notebook_data_characteristics(notebook_content, user_query)
             
             if analysis.get("success"):
                 logger.info(f"✅ Data analysis successful: {analysis['primary_domain']} domain detected")
@@ -148,16 +148,16 @@ class DataScienceAgent(Flow):
             return {
                 "success": False,
                 "error": f"Analysis failed: {e}",
-                "primary_domain": "tabular"  # Safe fallback
+                "primary_domain": "Tabular"  # Safe fallback
             }
     
-    def _analyze_notebook_data_characteristics(self, notebook_content):
+    def _analyze_notebook_data_characteristics(self, notebook_content, user_query):
         """Extract data characteristics from notebook content for domain detection"""
         try:
             analysis_result = {
                 "success": False,
-                "primary_domain": "tabular",
-                "suggested_domains": ["tabular"],
+                "primary_domain": "Tabular",
+                "suggested_domains": ["Tabular"],
                 "data_found": False,
                 "data_summary": "",
                 "characteristics": {}
@@ -231,65 +231,14 @@ class DataScienceAgent(Flow):
                         print(f"📋 COLUMNS TRACKER: {len(columns_found)} columns found")
                         break
             
-            # Domain detection based on content patterns
-            domain_scores = {"Tabular": 0, "Time-Series": 0, "Multivariate": 0}
-            
-            # Tabular indicators
-            tabular_keywords = [
-                r"classification", r"regression", r"predict", r"model\.fit",
-                r"train_test_split", r"cross_validation", r"accuracy", r"precision",
-                r"recall", r"sklearn", r"RandomForest", r"XGBoost", r"LogisticRegression"
-            ]
-            
-            tabular_score = 10  # Base score for general tabular analysis
-            for keyword in tabular_keywords:
-                if re.search(keyword, notebook_content, re.IGNORECASE):
-                    tabular_score += 5
-            
-            domain_scores["Tabular"] = tabular_score
-            logger.info(f"📊 Tabular indicators found (score: {tabular_score})")
-            print(f"📊 TABULAR TRACKER: Score {tabular_score}")
-            
-            # Time series indicators
-            time_keywords = [
-                r"pd\.to_datetime", r"datetime", r"timestamp", r"date", 
-                r"time_series", r"forecast", r"trend", r"seasonal"
-            ]
-            
-            time_score = 0
-            for keyword in time_keywords:
-                if re.search(keyword, notebook_content, re.IGNORECASE):
-                    time_score += 10
-            
-            if time_score > 0:
-                domain_scores["Time-Series"] = time_score
-                logger.info(f"🕒 Time series indicators found (score: {time_score})")
-                print(f"🕒 TIMESERIES TRACKER: Score {time_score}")
-            
-            # Multimodal indicators
-            multimodal_keywords = [
-                r"text", r"image", r"nlp", r"cv2", r"PIL", 
-                r"tokeniz", r"embedding", r"vision", r"language"
-            ]
-            
-            multimodal_score = 0
-            for keyword in multimodal_keywords:
-                if re.search(keyword, notebook_content, re.IGNORECASE):
-                    multimodal_score += 8
-            
-            if multimodal_score > 0:
-                domain_scores["Multivariate"] = multimodal_score
-                logger.info(f"🎭 Multimodal indicators found (score: {multimodal_score})")
-                print(f"🎭 MULTIMODAL TRACKER: Score {multimodal_score}")
-            
-            # Determine primary domain
-            primary_domain = max(domain_scores.items(), key=lambda x: x[1])[0]
-            suggested_domains = [domain for domain, score in domain_scores.items() if score > 0]
+            # LLM-based domain determination
+            primary_domain, suggested_domains = self._determine_domain_with_llm(
+                notebook_content, user_query, columns_found, analysis_result.get("characteristics", {})
+            )
             
             analysis_result.update({
                 "primary_domain": primary_domain,
-                "suggested_domains": suggested_domains,
-                "domain_scores": domain_scores
+                "suggested_domains": suggested_domains
             })
             
             # Look for target column hints
@@ -326,9 +275,86 @@ class DataScienceAgent(Flow):
             return {
                 "success": False,
                 "error": f"Analysis failed: {e}",
-                "primary_domain": "tabular",
-                "suggested_domains": ["tabular"]
+                "primary_domain": "Tabular",
+                "suggested_domains": ["Tabular"]
             }
+    
+    def _determine_domain_with_llm(self, notebook_content: str, user_query: str, columns: list, characteristics: dict) -> tuple:
+        """Use LLM to determine the appropriate domain for the dataset based on content analysis."""
+        try:
+            if not self.model_client:
+                logger.warning("No model client available, falling back to tabular domain")
+                return "Tabular", ["Tabular"]
+            
+            # Prepare context for LLM
+            shape_info = characteristics.get("shape", "unknown")
+            column_info = f"Columns: {columns[:10]}" if columns else "Columns: unknown"
+            
+            # Extract relevant code snippets
+            code_patterns = [
+                r"import.*(?:pandas|numpy|sklearn|matplotlib|seaborn|plotly)",
+                r"pd\.(?:read_csv|read_json|DataFrame|to_datetime)",
+                r"(?:train_test_split|fit|predict|forecast|classification|regression)",
+                r"(?:datetime|timestamp|time_series|seasonal|trend)",
+                r"(?:image|text|nlp|cv2|PIL|vision|language|embedding)"
+            ]
+            
+            relevant_code = []
+            for pattern in code_patterns:
+                matches = re.findall(f".*{pattern}.*", notebook_content, re.IGNORECASE)
+                relevant_code.extend(matches[:3])  # Limit to 3 matches per pattern
+            
+            prompt = f"""Analyze this Jupyter notebook data to determine the most appropriate ML domain.
+
+Dataset Information:
+- Shape: {shape_info}
+- {column_info}
+- User Query: {user_query}
+
+Relevant Code Snippets:
+{chr(10).join(relevant_code[:15])}
+
+Based on this analysis, determine the primary domain from these options:
+- Tabular: Traditional structured data for classification/regression
+- Time-Series: Time-ordered data for forecasting
+- Multivariate: Data combining text, images, and/or other modalities
+
+Respond with just the domain name (Tabular, Time-Series, or Multivariate) followed by a brief reason on the next line.
+Example:
+Tabular
+Standard classification task with structured features"""
+
+            # Import AgnoMessage for bedrock compatibility
+            from .nodes import AgnoMessage
+            
+            messages = [AgnoMessage(role="user", content=prompt)]
+            response = self.model_client.invoke(messages)
+            
+            # Extract content from Bedrock response format
+            if hasattr(response, 'content'):
+                result = response.content.strip().lower()
+            else:
+                result = str(response).strip().lower()
+            lines = result.split('\n')
+            
+            # Parse domain from response
+            domain = lines[0].strip()
+            reason = lines[1] if len(lines) > 1 else ""
+            
+            # Validate domain
+            valid_domains = ["Tabular", "Time-Series", "Multivariate"]
+            if domain not in valid_domains:
+                domain = "Tabular"  # Default fallback
+            
+            logger.info(f"🤖 LLM determined domain: {domain} ({reason})")
+            print(f"🤖 LLM DOMAIN: {domain} - {reason}")
+            
+            return domain, [domain]
+            
+        except Exception as e:
+            logger.error(f"❌ LLM domain determination failed: {e}")
+            print(f"❌ LLM DOMAIN ERROR: {e}")
+            return "Tabular", ["Tabular"]
     
     def _load_repo_context(self):
         """Load repository context from repo_context.md"""
@@ -454,7 +480,7 @@ class DataScienceAgent(Flow):
             logger.debug(f"Agent context: history={bool(kwargs.get('history'))}, timestamp={kwargs.get('timestamp')}")
             
             # Run the agent
-            result = self.run(shared)
+            self.run(shared)
             
             logger.info(f"🤖 Agent analysis completed - Success: {shared.get('analysis_complete', False)}")
             logger.debug(f"Actions taken: {shared.get('action_history', [])}")
@@ -489,7 +515,7 @@ class DataScienceAgent(Flow):
                 }
             }
     
-    def post(self, shared, prep_res, exec_res):
+    def post(self, shared, _prep_res, exec_res):
         """Agent completion"""
         shared["agent_completed"] = True
         logger.info(f"🤖 Agent completed - Actions taken: {len(shared.get('action_history', []))}")
