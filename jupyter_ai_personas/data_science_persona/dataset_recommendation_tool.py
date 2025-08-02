@@ -46,17 +46,20 @@ class Dataset:
     domain: str  # UCI official: "Tabular", "Time-Series", "Sequential", "Multivariate", etc.
     url: str
     download_url: str
-    size_mb: Optional[float] = None
     rows: Optional[int] = None
     columns: Optional[int] = None
-    file_format: str = "csv"
     tags: List[str] = None
-    difficulty: str = "beginner"  # "beginner", "intermediate", "advanced"
-    relevance_score: float = 0.0
     
     def __post_init__(self):
         if self.tags is None:
             self.tags = []
+    
+    @property
+    def size_mb(self) -> float:
+        """Estimate size in MB based on rows/columns"""
+        if self.rows and self.columns:
+            return round(self.rows * self.columns * 0.001, 2)
+        return 1.0
 
 
 class DatasetRecommendationTool:
@@ -83,13 +86,6 @@ class DatasetRecommendationTool:
             Dictionary with formatted results for agent
         """
         try:
-            # Override domain based on query indicators
-            detected_domain = self._detect_domain_from_query(user_query)
-            if detected_domain:
-                logger.info(f"🎯 Domain override: '{domain}' -> '{detected_domain}' based on query")
-                print(f"🎯 DOMAIN OVERRIDE: {domain} -> {detected_domain}")
-                domain = detected_domain
-            
             logger.info(f"🔍 Searching for datasets: query='{user_query}', domain='{domain}'")
             print(f"🔍 DATASET SEARCH: Query='{user_query}', Domain='{domain}'")
             
@@ -171,17 +167,6 @@ class DatasetRecommendationTool:
                 "training_result": f"## ❌ Formatting Error\n\n{str(e)}"
             }
     
-    def _detect_domain_from_query(self, user_query: str) -> str:
-        """Detect UCI domain from user query keywords"""
-        query_lower = user_query.lower()
-        
-        # Check each data type for keyword matches
-        for domain, keywords in DATA_TYPE_KEYWORDS.items():
-            if any(keyword in query_lower for keyword in keywords):
-                return domain
-        
-        # Default to None - don't override if no strong indicators
-        return None
 
     def generate_loading_code(self, dataset: Dataset, variable_name: str = "df") -> str:
         """Generate code to load a recommended dataset"""
@@ -276,7 +261,7 @@ class UCIMLRepoSource:
                         # Process all datasets found on this page
                         page_datasets = 0
                         for link in dataset_links:
-                            dataset = self._parse_and_score_dataset(link, user_query, seen_titles, domain)
+                            dataset = self._parse_and_score_dataset(link, seen_titles, domain)
                             if dataset:
                                 all_datasets.append(dataset)
                                 seen_titles.add(dataset.title)
@@ -335,7 +320,7 @@ class UCIMLRepoSource:
             return []
     
     def _generate_comprehensive_search_strategies(self, user_query: str, domain: str) -> List[tuple]:
-        """Generate optimized search strategies (7 efficient strategies instead of 11+)"""
+        """Generate simplified search strategies (3 essential strategies)"""
         strategies = []
         
         # Auto-detect primary filters
@@ -343,57 +328,23 @@ class UCIMLRepoSource:
         primary_task = self._detect_uci_task(user_query)
         primary_subject = self._detect_uci_subject(user_query)
         
-        # Strategy 1: Query-specific search (most targeted)
+        # Strategy 1: Most specific search with detected filters
         if primary_data_type or primary_task or primary_subject:
             params = (primary_data_type, primary_task, primary_subject)
-            name = f"Query-specific ({primary_data_type}, {primary_task}, {primary_subject})"
-            strategies.append((name, params))
+            strategies.append(("Targeted search", params))
         
-        # Strategy 2: Primary data type + detected task (targeted)
-        if primary_data_type and primary_task:
-            params = (primary_data_type, primary_task, "")
-            strategies.append((f"Primary: {primary_data_type} + {primary_task}", params))
+        # Strategy 2: Domain-focused search
+        params = (primary_data_type or "Tabular", "", "")
+        strategies.append(("Domain search", params))
         
-        # Strategy 3: Primary data type alone (broader coverage)
-        if primary_data_type:
-            params = (primary_data_type, "", "")
-            strategies.append((f"Primary DataType: {primary_data_type}", params))
+        # Strategy 3: Generic fallback
+        params = ("Tabular", "Classification", "")
+        strategies.append(("Fallback search", params))
         
-        # Strategy 4: Secondary data type (backup if primary fails)
-        relevant_data_types = []
-        if domain == "Time-Series":
-            relevant_data_types = ["Sequential", "Multivariate"]  # Exclude primary Time-Series
-        elif domain in ["Multivariate", "Image", "Text"]:
-            relevant_data_types = ["Tabular", "Text"] if primary_data_type != "Tabular" else ["Multivariate"]
-        else:  # Tabular or other
-            relevant_data_types = ["Multivariate"] if primary_data_type != "Multivariate" else ["Tabular"]
-        
-        if relevant_data_types:
-            secondary_data_type = relevant_data_types[0]
-            params = (secondary_data_type, "", "")
-            strategies.append((f"Secondary DataType: {secondary_data_type}", params))
-        
-        # Strategy 5: Primary task + best data type (task-focused)
-        if primary_task:
-            best_data_type = primary_data_type or "Multivariate"  # Use primary or default to multivariate
-            params = (best_data_type, primary_task, "")
-            strategies.append((f"Task-focused: {primary_task} + {best_data_type}", params))
-        
-        # Strategy 6: Subject area (only if specifically detected, not generic)
-        if primary_subject and primary_subject != "":
-            params = ("", "", primary_subject)
-            strategies.append((f"Subject: {primary_subject}", params))
-        
-        # Strategy 7: Fallback with best generic combination (not unfiltered)
-        fallback_data_type = "Multivariate"  # Most common and broad
-        fallback_task = "Classification"     # Most common task
-        params = (fallback_data_type, fallback_task, "")
-        strategies.append((f"Fallback: {fallback_data_type} + {fallback_task}", params))
-        
-        logger.info(f"🎯 Generated {len(strategies)} optimized search strategies")
+        logger.info(f"🎯 Generated {len(strategies)} search strategies")
         return strategies
     
-    def _parse_and_score_dataset(self, link, user_query: str, seen_titles: set, search_domain: str = None):
+    def _parse_and_score_dataset(self, link, seen_titles: set, search_domain: str = None):
         """Parse dataset, avoiding duplicates (scoring done later after filtering)"""
         try:
             # Only process links that have text content
@@ -405,12 +356,7 @@ class UCIMLRepoSource:
             if title_text in seen_titles:
                 return None
             
-            dataset = self._parse_dataset_card(link, search_domain)
-            if dataset:
-                # Don't calculate relevance score here - will be done after filtering
-                dataset.relevance_score = 0.0  # Initialize to 0
-                return dataset
-            return None
+            return self._parse_dataset_card(link, search_domain)
         except Exception as e:
             logger.debug(f"Error parsing dataset: {e}")
             return None
@@ -435,22 +381,15 @@ class UCIMLRepoSource:
     def _detect_uci_task(self, user_query: str) -> str:
         """Auto-detect task filter from user query"""
         query_lower = user_query.lower()
-        
-        # Check each task type for keyword matches
         for task, keywords in TASK_KEYWORDS.items():
             if any(kw in query_lower for kw in keywords):
                 return task
-        
-        # For timeseries queries without specific task, don't apply task filter
         if any(kw in query_lower for kw in ['timeseries', 'time series', 'temporal']) and not any(kw in query_lower for kw in ['classification', 'regression', 'clustering']):
             return ''  # No task filter for generic timeseries
         
-        # For generic queries, don't default to classification to allow more variety
         generic_terms = ['recommend', 'data', 'dataset']
         if any(term in query_lower for term in generic_terms) and len(query_lower.split()) <= 4:
             return ''  # No task filter for short generic queries
-        
-        # Default to classification only if query seems classification-related
         return 'Classification'
     
     def _detect_uci_subject(self, user_query: str) -> str:
@@ -563,25 +502,21 @@ class UCIMLRepoSource:
             else:
                 task_text = "Classification"  # default
             
-            # Determine domain (use expected_domain if we're filtering for specific type)
             if expected_domain and expected_domain != "Tabular":
                 domain = expected_domain
             else:
                 domain = self._determine_domain(data_types_text, task_text, name)
             
-            # Create dataset
             dataset = Dataset(
                 title=name,
                 description=description or f"UCI ML Repository dataset for {task_text.lower()}",
                 source="uci",
                 domain=domain,
                 url=dataset_url,
-                download_url=self._construct_download_url(dataset_url, name),
-                size_mb=round(instances * attributes * 0.001, 2),  # Rough estimate
+                download_url=self._construct_download_url(dataset_url),
                 rows=instances,
                 columns=attributes,
-                tags=self._extract_tags(task_text, data_types_text, name),
-                difficulty="beginner" if instances < 1000 else "intermediate"
+                tags=self._extract_tags(task_text, data_types_text, name)
             )
             
             logger.debug(f"📊 Parsed UCI dataset: {name}")
@@ -593,111 +528,58 @@ class UCIMLRepoSource:
     
     def _determine_domain(self, data_types: str, task: str, name: str):
         """Use UCI's official domain from data_types, with enhanced fallback detection"""
-        # Use UCI's official data type if available
+
         if data_types and data_types != "Tabular":
             uci_type = data_types.strip()
-            # Return UCI's official domain labels directly
             if uci_type in ['Time-Series', 'Sequential', 'Multivariate', 'Univariate', 'Text', 'Image', 'Other']:
                 return uci_type
-        
-        # Enhanced fallback detection using title, task, and context
         text_lower = f"{data_types} {task} {name}".lower()
         
-        # Strong time-series indicators
         if any(indicator in text_lower for indicator in ['time series', 'timeseries', 'temporal', 'forecast', 'stock', 'weather', 'climate', 'sales', 'financial', 'daily', 'hourly', 'monthly', 'yearly', 'seasonal']):
             return "Time-Series"
-        
-        # Image indicators
         elif any(indicator in text_lower for indicator in ['image', 'vision', 'photo', 'picture', 'pixel', 'visual']):
             return "Image"
-        
-        # Text indicators
         elif any(indicator in text_lower for indicator in ['text', 'nlp', 'language', 'speech', 'document', 'corpus']):
             return "Text"
-        
-        # Sequential indicators
         elif any(indicator in text_lower for indicator in ['sequential', 'sequence', 'ordered']):
             return "Sequential"
-        
-        # Multivariate indicators
         elif any(indicator in text_lower for indicator in ['multivariate', 'mixed', 'multiple variables']):
             return "Multivariate"
-        
-        # Default to UCI's tabular
         return "Tabular"
     
     
     def _extract_tags(self, task: str, data_types: str, name: str):
-        """Extract relevant tags from UCI dataset info using comprehensive categories"""
+        """Extract basic tags from dataset info"""
         tags = []
         text_lower = f"{task} {data_types} {name}".lower()
         
-        # Enhanced task-based tags (using UCI categories)
-        task_indicators = {
-            'classification': ['classification', 'classify', 'predict class', 'category', 'label', 'binary', 'multi-class'],
-            'regression': ['regression', 'continuous', 'numeric prediction', 'estimate', 'forecast', 'predict value'],
-            'clustering': ['clustering', 'grouping', 'unsupervised', 'cluster analysis'],
-            'recommendation': ['recommendation', 'recommender', 'collaborative filtering', 'content-based'],
-            'causal-discovery': ['causal', 'causality', 'cause', 'effect', 'causal inference'],
-            'feature-selection': ['feature selection', 'variable selection', 'dimensionality']
-        }
-        
-        for tag, keywords in task_indicators.items():
-            if any(keyword in text_lower for keyword in keywords):
-                tags.append(tag)
-        
-        # Enhanced subject area tags (using UCI categories)
-        subject_indicators = {
-            'life-sciences': ['biology', 'medical', 'health', 'disease', 'genetic', 'clinical', 'patient', 'hospital', 'drug', 'cancer', 'heart', 'brain'],
-            'physical-sciences': ['physics', 'chemistry', 'astronomy', 'energy', 'particle', 'chemical', 'molecular', 'quantum', 'weather', 'climate'],
-            'cs-engineering': ['computer', 'software', 'algorithm', 'network', 'system', 'engineering', 'technology', 'robot', 'ai', 'machine learning'],
-            'social-sciences': ['social', 'psychology', 'sociology', 'demographic', 'census', 'population', 'survey', 'behavior', 'education', 'student'],
-            'business': ['business', 'finance', 'marketing', 'sales', 'customer', 'retail', 'bank', 'economic', 'profit', 'revenue', 'market'],
-            'game': ['game', 'chess', 'poker', 'tic-tac-toe', 'connect', 'puzzle', 'strategy'],
-            'law': ['legal', 'law', 'court', 'judge', 'crime', 'criminal', 'justice']
-        }
-        
-        for tag, keywords in subject_indicators.items():
-            if any(keyword in text_lower for keyword in keywords):
-                tags.append(tag)
-        
-        # Enhanced data type tags (using UCI categories)
-        data_type_indicators = {
-            'multivariate': ['multivariate', 'multiple variables', 'multi-dimensional', 'several features'],
-            'univariate': ['univariate', 'single variable', 'one dimension', 'single feature'],
-            'sequential': ['sequential', 'sequence', 'ordered', 'series'],
-            'time-series': ['time series', 'temporal', 'time-based', 'chronological', 'timeseries'],
-            'text': ['text', 'document', 'corpus', 'natural language', 'nlp', 'linguistic'],
-            'images': ['image', 'picture', 'visual', 'pixel', 'photo', 'computer vision'],
-            'spatio-temporal': ['spatial', 'geographic', 'location', 'geo', 'coordinates']
-        }
-        
-        for tag, keywords in data_type_indicators.items():
-            if any(keyword in text_lower for keyword in keywords):
-                tags.append(tag)
+        # Basic task tags
+        if 'classification' in text_lower:
+            tags.append('classification')
+        if 'regression' in text_lower:
+            tags.append('regression')
+        if any(kw in text_lower for kw in ['time', 'temporal', 'series']):
+            tags.append('time-series')
+        if any(kw in text_lower for kw in ['medical', 'health', 'clinical']):
+            tags.append('medical')
+        if any(kw in text_lower for kw in ['business', 'finance', 'economic']):
+            tags.append('business')
             
-        return tags[:8]  # Limit to 8 tags for better coverage
+        return tags[:3]  # Keep it simple
     
-    def _construct_download_url(self, dataset_url: str, name: str):
+    def _construct_download_url(self, dataset_url: str):
         """Use the actual dataset URL as download link"""
-        # Return the actual UCI dataset page URL - users can find download links there
-        _ = name  # Suppress unused warning
         return dataset_url
     
     def _matches_criteria(self, dataset: Dataset, keywords: List[str], domain: str):
         """Check if dataset matches search criteria"""
         if not keywords:
             return True
-            
-        # Check domain compatibility using UCI labels (strict matching)
         if domain != "Tabular" and dataset.domain != domain:
             return False
             
-        # Check keyword matches
         searchable_text = f"{dataset.title} {dataset.description} {' '.join(dataset.tags)}".lower()
         query_text = ' '.join(keywords).lower()
-        
-        # Enhanced matching using shared keyword definitions
         important_matches = False
         
         # Check for any important matches using shared constants
@@ -710,13 +592,11 @@ class UCIMLRepoSource:
             if important_matches:
                 break
         
-        # General keyword matches
         keyword_matches = 0
         for keyword in keywords:
             if len(keyword) > 3 and keyword.lower() in searchable_text:
                 keyword_matches += 1
         
-        # More lenient matching - accept datasets with any reasonable match
         if important_matches:
             return True
         elif keyword_matches >= 1:  # Reduced from 2 to 1 keyword match
@@ -724,7 +604,6 @@ class UCIMLRepoSource:
         elif domain in ["Tabular", "Multivariate"] and keyword_matches > 0:
             return True
         else:
-            # For generic queries, accept more datasets
             generic_terms = ['recommend', 'dataset', 'data']
             if any(term in ' '.join(keywords) for term in generic_terms):
                 return True

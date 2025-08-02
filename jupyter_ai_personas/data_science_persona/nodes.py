@@ -348,7 +348,6 @@ What would you like to explore today? 🎯"""
             shared["analysis_complete"] = True
             return "end"
 
-
 class DataAnalysisNode(Node):
     """Node for focused data analysis tasks"""
     
@@ -516,7 +515,6 @@ class MLTrainingNode(Node):
             "notebook_path": shared.get("notebook_path", ""),
             "context_summary": shared.get("context_summary", ""),
             "action_reasoning": shared.get("action_reasoning", ""),
-            # Use shared data analysis from agent prep
             "data_analysis": shared.get("data_analysis", {}),
             "has_data": shared.get("has_data", False),
             "primary_domain": shared.get("primary_domain", "tabular")
@@ -525,12 +523,8 @@ class MLTrainingNode(Node):
     def exec(self, prep_res):
         """Execute automated ML training - assumes data exists"""
         try:
-            
-            # Use shared data analysis
             data_analysis = prep_res.get("data_analysis", {})
             has_data = prep_res.get("has_data", False)
-            
-            # This node assumes data exists - if no data, it's a routing error
             if not has_data:
                 logger.error("❌ MLTrainingNode called without data - this is a routing error")
                 return {
@@ -539,43 +533,18 @@ class MLTrainingNode(Node):
                     "training_result": "## ❌ ML Training Error\n\nNo data available. Please provide data or ask for dataset recommendations first."
                 }
             
-            # Get detected domain
             training_type = prep_res.get("primary_domain", "tabular")
             logger.info(f"🎯 Selected AutoGluon domain: {training_type.upper()}")
-            print(f"🎯 Using AutoGluon {training_type.upper()} domain for ML training")
-            
-            # Map domain names for AutoGluon tool compatibility
             domain_mapping = {
                 "Time-Series": "timeseries",
                 "Multivariate": "multimodal", 
                 "Tabular": "tabular"
             }
-            
             autogluon_domain = domain_mapping.get(training_type, "tabular")
-            
-            # Create comprehensive problem context for AutoGluon tool
-            problem_context = {
-                "domain": autogluon_domain,
-                "data_characteristics": data_analysis.get("characteristics", {}),
-                "target_column": data_analysis.get("target_column", "target"),
-                "problem_type": data_analysis.get("problem_type", "auto"),
-                "variable_name": data_analysis.get("variable_name", "df"),
-                "user_query": prep_res.get("user_query", ""),
-                "data_summary": data_analysis.get("data_summary", ""),
-                "notebook_content": prep_res.get("notebook_content", "")
-            }
-            
-            # Use simplified AutoGluon tool's recommendation capabilities
             logger.info(f"🤖 Using simplified AutoGluon tool for {training_type} domain")
-            print(f"🤖 AUTOGLUON: Generating optimized {training_type} code")
-            
-            # Use agent's data analysis instead of extracting DataFrame
-            logger.info("🔍 Using agent's data analysis for code generation")
             
             if data_analysis.get("success") and data_analysis.get("data_found"):
-                logger.info("✅ Using agent's data analysis - generating dataset-specific AutoGluon code")
-                print("✅ DATASET-SPECIFIC: Creating customized AutoGluon code based on agent analysis")
-                
+                logger.info("✅ Using agent's data analysis - generating dataset-specific AutoGluon code")                
                 # Convert agent's analysis to format expected by AutoGluon tool
                 mock_notebook_data = {
                     "success": True,

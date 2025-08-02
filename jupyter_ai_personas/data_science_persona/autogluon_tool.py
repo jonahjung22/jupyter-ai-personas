@@ -26,7 +26,6 @@ class AutoGluonTool:
         """Generate AutoGluon code based on problem context - requires dataset-specific generation."""
         try:
             logger.info("🎯 AutoGluon recommendation requires dataset-specific generation")
-            
             return {
                 "success": False, 
                 "error": "Generic recommendations removed. Use generate_dataset_specific_code() with actual dataset for optimal results.",
@@ -52,7 +51,6 @@ class AutoGluonTool:
                 target_column = self._detect_target_column(df, notebook_data, user_query)
                 logger.info("📊 Using actual DataFrame for analysis")
             elif "dataframe_info" in notebook_data:
-                # Metadata - use pre-analyzed info
                 df_info = notebook_data["dataframe_info"]
                 columns = df_info.get("columns", [])
                 shape = df_info.get("shape", (100, 10))
@@ -63,7 +61,6 @@ class AutoGluonTool:
                 return {"success": False, "error": "No dataset or dataset info provided"}
             
             logger.info(f"🎯 Target column: {target_column}")
-            logger.info(f"📋 Dataset shape: {shape}")
             logger.info(f"📊 Columns: {columns}")
             
             # Template-based generation for efficiency
@@ -163,20 +160,6 @@ print(f"Formatted columns: {{list(ts_data_formatted.columns)}}")
 print("\\nFirst few rows:")
 print(ts_data_formatted.head())
 
-# Verify target column exists
-if '{target_column}' not in ts_data_formatted.columns:
-    print("⚠️  Target column '{target_column}' not found!")
-    print("Available columns:", list(ts_data_formatted.columns))
-    # Use first numeric column as backup
-    numeric_cols = ts_data_formatted.select_dtypes(include=['number']).columns.tolist()
-    if len(numeric_cols) > 0:
-        actual_target = numeric_cols[0]
-        print(f"Using '{{actual_target}}' as target instead")
-    else:
-        actual_target = '{target_column}'
-else:
-    actual_target = '{target_column}'
-
 # Create TimeSeriesDataFrame
 ts_autogluon = TimeSeriesDataFrame(ts_data_formatted)
 
@@ -240,13 +223,9 @@ print("The WeightedEnsemble combines multiple models for optimal performance")""
     
     def _generate_tabular_code_for_dataset(self, shape, variable_name: str, target_column: str, columns: list, user_query: str) -> Dict[str, Any]:
         """Generate tabular code customized for the specific dataset."""
-        
-        # Determine problem type from data and query using AutoGluon's valid types
-        problem_type = None  # Let AutoGluon auto-detect by omitting parameter
+        problem_type = None
         if any(word in user_query.lower() for word in ["regression", "predict", "estimate", "continuous"]):
             problem_type = "regression"
-        # Note: AutoGluon will auto-detect binary vs multiclass for classification
-
         code = f"""# AutoGluon Tabular ML Solution - Dataset Specific
 from autogluon.tabular import TabularDataset, TabularPredictor
 
@@ -255,21 +234,6 @@ from autogluon.tabular import TabularDataset, TabularPredictor
 # - Target Column: '{target_column}'
 # - Available Columns: {columns}
 # - Problem Type: {problem_type}
-
-# Verify target column exists
-if '{target_column}' not in {variable_name}.columns:
-    print("⚠️  Target column '{target_column}' not found!")
-    print("Available columns:", list({variable_name}.columns))
-    # Try to find a suitable target column
-    numeric_cols = {variable_name}.select_dtypes(include=['number']).columns.tolist()
-    if len(numeric_cols) > 0:
-        actual_target = numeric_cols[-1]  # Use last numeric column
-        print(f"Using '{{actual_target}}' as target instead")
-    else:
-        actual_target = {variable_name}.columns[-1]  # Use last column
-        print(f"Using '{{actual_target}}' as target instead")
-else:
-    actual_target = '{target_column}'
 
 print(f"Training with target column: {{actual_target}}")
 print(f"Dataset shape: {{{variable_name}.shape}}")
@@ -325,15 +289,6 @@ from autogluon.multimodal import MultiModalPredictor
 # - Shape: {shape}
 # - Target Column: '{target_column}'
 # - Available Columns: {columns}
-
-# Verify target column exists
-if '{target_column}' not in {variable_name}.columns:
-    print("⚠️  Target column '{target_column}' not found!")
-    print("Available columns:", list({variable_name}.columns))
-    actual_target = {variable_name}.columns[-1]  # Use last column
-    print(f"Using '{{actual_target}}' as target instead")
-else:
-    actual_target = '{target_column}'
 
 print(f"Training multimodal model with target: {{actual_target}}")
 print(f"Dataset shape: {{{variable_name}.shape}}")

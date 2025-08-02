@@ -1,7 +1,6 @@
 import logging
-import re
 from pathlib import Path
-
+import re
 try:
     from .pocketflow import Flow
     from .file_reader_tool import NotebookReaderTool
@@ -16,9 +15,7 @@ except ImportError as e:
 logger = logging.getLogger(__name__)
 
 class DataScienceAgent(Flow):
-    """
-    PocketFlow Agent that coordinates the workflow for Data Science Analysis
-    """
+    """ PocketFlow Agent that coordinates the workflow for Data Science Analysis """
     
     def __init__(self, model_client=None):
         super().__init__()
@@ -46,29 +43,17 @@ class DataScienceAgent(Flow):
         
         # Connect analysis node back to decision (for iterative analysis)
         self.analyze_node - "decide" >> self.decide_node
-        
-        # Connect greeting node to complete for complex queries
         self.greeting_node - "complete" >> self.complete_node
-        
-        # ML training node back to decision or complete
         self.ml_training_node - "decide" >> self.decide_node
         self.ml_training_node - "complete" >> self.complete_node
-        
-        logger.info("✅ DataScienceAgent initialized with decision-making, data recommendations, and ML training capabilities")
-        logger.debug(f"Agent nodes: {[node.__class__.__name__ for node in [self.decide_node, self.greeting_node, self.analyze_node, self.data_recommendation_node, self.ml_training_node, self.complete_node]]}")
-    
+
     def prep(self, shared):
         """Agent preparation - load context"""
-        logger.info("🚀 Starting agent preparation...")
-        
-        # Load repo context
-        logger.debug("Loading repo context...")
+
+        # Load repo and notebook context
         repo_context = self._load_repo_context()
         shared["repo_context"] = repo_context
         logger.info(f"📋 Repo context: {'✅ Loaded' if repo_context else '❌ Not found'}")
-        
-        # Load notebook content
-        logger.debug("Loading notebook content...")
         user_query = shared.get("user_query", "")
         logger.debug(f"User query for notebook extraction: {user_query}")
         
@@ -83,7 +68,6 @@ class DataScienceAgent(Flow):
         
         # Comprehensive data analysis - available to all nodes
         logger.info("📊 Starting comprehensive data analysis...")
-        print("📊 DATA RETRIEVAL TRACKER: Starting comprehensive data analysis")
         data_analysis = self._analyze_all_available_data(user_query, notebook_content)
         
         # Add to shared state for all nodes
@@ -93,14 +77,11 @@ class DataScienceAgent(Flow):
         shared["suggested_domains"] = data_analysis.get("suggested_domains", [])
         shared["primary_domain"] = data_analysis.get("primary_domain", "Tabular")
         
-        logger.info(f"📊 Data analysis: {'✅ Complete' if data_analysis.get('success') else '❌ No data found'}")
         if data_analysis.get("success"):
             chars = data_analysis.get("characteristics", {})
             logger.info(f"📋 Data shape: {chars.get('shape', 'unknown')}")
             logger.info(f"🎯 Suggested domain: {data_analysis.get('primary_domain', 'unknown')}")
-            print(f"📋 DATA SHAPE TRACKER: {chars.get('shape', 'unknown')}")
-            print(f"🎯 DOMAIN TRACKER: {data_analysis.get('primary_domain', 'unknown')}")
-        
+
         # Initialize tracking
         shared["action_history"] = []
         shared["analysis_complete"] = False
@@ -116,30 +97,24 @@ class DataScienceAgent(Flow):
     
     def _analyze_all_available_data(self, user_query, notebook_content):
         """Analyze existing notebook content for domain detection and code generation"""
-        logger.info("📊 Analyzing notebook content for data characteristics...")
-        print("📊 DATA TRACKER: Analyzing existing notebook content")
-        
+        logger.info("📊 Analyzing notebook content for data characteristics...")        
         if not notebook_content:
             logger.warning("❌ No notebook content available for analysis")
-            print("❌ DATA TRACKER: No notebook content")
             return {
                 "success": False,
                 "error": "No notebook content available",
-                "primary_domain": "Tabular"  # Safe fallback
+                "primary_domain": "tabular"  # Safe fallback
             }
         
         try:
             # Analyze the notebook content for data characteristics
-            analysis = self._analyze_notebook_data_characteristics(notebook_content, user_query)
+            analysis = self._analyze_notebook_data_characteristics(notebook_content)
             
             if analysis.get("success"):
                 logger.info(f"✅ Data analysis successful: {analysis['primary_domain']} domain detected")
-                print(f"✅ DATA TRACKER: Analysis SUCCESS - {analysis['primary_domain']} domain")
-                print(f"📊 DATA CHARACTERISTICS: {analysis.get('data_summary', 'No summary')}")
                 return analysis
             else:
                 logger.warning("⚠️ Data analysis completed but with limited information")
-                print("⚠️ DATA TRACKER: Analysis completed with limited info")
                 return analysis
                 
         except Exception as e:
@@ -148,16 +123,16 @@ class DataScienceAgent(Flow):
             return {
                 "success": False,
                 "error": f"Analysis failed: {e}",
-                "primary_domain": "Tabular"  # Safe fallback
+                "primary_domain": "tabular"  # Safe fallback
             }
     
-    def _analyze_notebook_data_characteristics(self, notebook_content, user_query):
+    def _analyze_notebook_data_characteristics(self, notebook_content):
         """Extract data characteristics from notebook content for domain detection"""
         try:
             analysis_result = {
                 "success": False,
-                "primary_domain": "Tabular",
-                "suggested_domains": ["Tabular"],
+                "primary_domain": "tabular",
+                "suggested_domains": ["tabular"],
                 "data_found": False,
                 "data_summary": "",
                 "characteristics": {}
@@ -231,14 +206,65 @@ class DataScienceAgent(Flow):
                         print(f"📋 COLUMNS TRACKER: {len(columns_found)} columns found")
                         break
             
-            # LLM-based domain determination
-            primary_domain, suggested_domains = self._determine_domain_with_llm(
-                notebook_content, user_query, columns_found, analysis_result.get("characteristics", {})
-            )
+            # Domain detection based on content patterns
+            domain_scores = {"Tabular": 0, "Time-Series": 0, "Multivariate": 0}
+            
+            # Tabular indicators
+            tabular_keywords = [
+                r"classification", r"regression", r"predict", r"model\.fit",
+                r"train_test_split", r"cross_validation", r"accuracy", r"precision",
+                r"recall", r"sklearn", r"RandomForest", r"XGBoost", r"LogisticRegression"
+            ]
+            
+            tabular_score = 10  # Base score for general tabular analysis
+            for keyword in tabular_keywords:
+                if re.search(keyword, notebook_content, re.IGNORECASE):
+                    tabular_score += 5
+            
+            domain_scores["Tabular"] = tabular_score
+            logger.info(f"📊 Tabular indicators found (score: {tabular_score})")
+            print(f"📊 TABULAR TRACKER: Score {tabular_score}")
+            
+            # Time series indicators
+            time_keywords = [
+                r"pd\.to_datetime", r"datetime", r"timestamp", r"date", 
+                r"time_series", r"forecast", r"trend", r"seasonal"
+            ]
+            
+            time_score = 0
+            for keyword in time_keywords:
+                if re.search(keyword, notebook_content, re.IGNORECASE):
+                    time_score += 10
+            
+            if time_score > 0:
+                domain_scores["Time-Series"] = time_score
+                logger.info(f"🕒 Time series indicators found (score: {time_score})")
+                print(f"🕒 TIMESERIES TRACKER: Score {time_score}")
+            
+            # Multimodal indicators
+            multimodal_keywords = [
+                r"text", r"image", r"nlp", r"cv2", r"PIL", 
+                r"tokeniz", r"embedding", r"vision", r"language"
+            ]
+            
+            multimodal_score = 0
+            for keyword in multimodal_keywords:
+                if re.search(keyword, notebook_content, re.IGNORECASE):
+                    multimodal_score += 8
+            
+            if multimodal_score > 0:
+                domain_scores["Multivariate"] = multimodal_score
+                logger.info(f"🎭 Multimodal indicators found (score: {multimodal_score})")
+                print(f"🎭 MULTIMODAL TRACKER: Score {multimodal_score}")
+            
+            # Determine primary domain
+            primary_domain = max(domain_scores.items(), key=lambda x: x[1])[0]
+            suggested_domains = [domain for domain, score in domain_scores.items() if score > 0]
             
             analysis_result.update({
                 "primary_domain": primary_domain,
-                "suggested_domains": suggested_domains
+                "suggested_domains": suggested_domains,
+                "domain_scores": domain_scores
             })
             
             # Look for target column hints
@@ -275,87 +301,9 @@ class DataScienceAgent(Flow):
             return {
                 "success": False,
                 "error": f"Analysis failed: {e}",
-                "primary_domain": "Tabular",
-                "suggested_domains": ["Tabular"]
+                "primary_domain": "tabular",
+                "suggested_domains": ["tabular"]
             }
-    
-    def _determine_domain_with_llm(self, notebook_content: str, user_query: str, columns: list, characteristics: dict) -> tuple:
-        """Use LLM to determine the appropriate domain for the dataset based on content analysis."""
-        try:
-            if not self.model_client:
-                logger.warning("No model client available, falling back to tabular domain")
-                return "Tabular", ["Tabular"]
-            
-            # Prepare context for LLM
-            shape_info = characteristics.get("shape", "unknown")
-            column_info = f"Columns: {columns[:10]}" if columns else "Columns: unknown"
-            
-            # Extract relevant code snippets
-            code_patterns = [
-                r"import.*(?:pandas|numpy|sklearn|matplotlib|seaborn|plotly)",
-                r"pd\.(?:read_csv|read_json|DataFrame|to_datetime)",
-                r"(?:train_test_split|fit|predict|forecast|classification|regression)",
-                r"(?:datetime|timestamp|time_series|seasonal|trend)",
-                r"(?:image|text|nlp|cv2|PIL|vision|language|embedding)"
-            ]
-            
-            relevant_code = []
-            for pattern in code_patterns:
-                matches = re.findall(f".*{pattern}.*", notebook_content, re.IGNORECASE)
-                relevant_code.extend(matches[:3])  # Limit to 3 matches per pattern
-            
-            prompt = f"""Analyze this Jupyter notebook data to determine the most appropriate ML domain.
-
-Dataset Information:
-- Shape: {shape_info}
-- {column_info}
-- User Query: {user_query}
-
-Relevant Code Snippets:
-{chr(10).join(relevant_code[:15])}
-
-Based on this analysis, determine the primary domain from these options:
-- Tabular: Traditional structured data for classification/regression
-- Time-Series: Time-ordered data for forecasting
-- Multivariate: Data combining text, images, and/or other modalities
-
-Respond with just the domain name (Tabular, Time-Series, or Multivariate) followed by a brief reason on the next line.
-Example:
-Tabular
-Standard classification task with structured features"""
-
-            # Import AgnoMessage for bedrock compatibility
-            from .nodes import AgnoMessage
-            
-            messages = [AgnoMessage(role="user", content=prompt)]
-            response = self.model_client.invoke(messages)
-            
-            # Extract content from Bedrock response format
-            if hasattr(response, 'content'):
-                result = response.content.strip().lower()
-            else:
-                result = str(response).strip().lower()
-            lines = result.split('\n')
-            
-            # Parse domain from response
-            domain = lines[0].strip()
-            reason = lines[1] if len(lines) > 1 else ""
-            
-            # Validate domain
-            valid_domains = ["Tabular", "Time-Series", "Multivariate"]
-            if domain not in valid_domains:
-                domain = "Tabular"  # Default fallback
-            
-            logger.info(f"🤖 LLM determined domain: {domain} ({reason})")
-            print(f"🤖 LLM DOMAIN: {domain} - {reason}")
-            
-            return domain, [domain]
-            
-        except Exception as e:
-            logger.error(f"❌ LLM domain determination failed: {e}")
-            print(f"❌ LLM DOMAIN ERROR: {e}")
-            return "Tabular", ["Tabular"]
-    
     def _load_repo_context(self):
         """Load repository context from repo_context.md"""
         try:
@@ -410,112 +358,67 @@ Standard classification task with structured features"""
                 return self._current_notebook_content or "", str(notebook_path), is_explicit
             
         except Exception as e:
-            logger.error(f"❌ Error loading notebook: {e}")
             import traceback
             logger.debug(f"Full traceback: {traceback.format_exc()}")
             return "", "", False
     
     def _extract_notebook_path(self, query):
-        """Extract notebook path from query or find default"""
+        """Extract notebook path from query"""
+        import re
+        
+        # Find all .ipynb file mentions in query
+        ipynb_matches = re.findall(r'[\w\-_./\\]+\.ipynb', query)
+        if not ipynb_matches:
+            return None
+        
         working_dir = Path.cwd()
-        logger.debug(f"Working directory: {working_dir}")
         
-        # Look for explicit notebook path with "notebook:" syntax
-        if "notebook:" in query.lower():
-            logger.debug("Found 'notebook:' in query - extracting explicit path")
-            parts = query.split("notebook:")
-            if len(parts) > 1:
-                path_part = parts[1].strip().split()[0]
-                logger.debug(f"Extracted path part: {path_part}")
-                notebook_path = Path(path_part)
-                
-                if not notebook_path.is_absolute():
-                    notebook_path = working_dir / notebook_path
-                    logger.debug(f"Converted to absolute path: {notebook_path}")
-                
-                if notebook_path.exists():
-                    logger.debug(f"✅ Explicit notebook path exists: {notebook_path}")
-                    return {"path": notebook_path, "explicit": True}
-                else:
-                    logger.warning(f"❌ Explicit notebook path does not exist: {notebook_path}")
-        
-        # Look for .ipynb file paths directly in the query (without "notebook:" prefix)
-        if ".ipynb" in query:
-            logger.debug("Found '.ipynb' in query - looking for direct path")
-            # Split by whitespace and look for .ipynb files
-            words = query.split()
-            for word in words:
-                if word.endswith('.ipynb'):
-                    logger.debug(f"Found potential notebook path: {word}")
-                    notebook_path = Path(word)
-                    
-                    # Try as absolute path first
-                    if notebook_path.is_absolute() and notebook_path.exists():
-                        logger.info(f"✅ Found absolute notebook path: {notebook_path}")
-                        return {"path": notebook_path, "explicit": True}
-                    
-                    # Try as relative path from working directory
-                    relative_path = working_dir / notebook_path
-                    if relative_path.exists():
-                        logger.info(f"✅ Found relative notebook path: {relative_path}")
-                        return {"path": relative_path, "explicit": True}
-                    
-                    logger.debug(f"Path doesn't exist: {notebook_path}")
-        
-        logger.warning("❌ No explicit notebook path found")
+        # Try each match until we find an existing file
+        for match in ipynb_matches:
+            notebook_path = Path(match)
+            if not notebook_path.is_absolute():
+                notebook_path = working_dir / notebook_path
+            if notebook_path.exists():
+                logger.info(f"✅ Found notebook: {notebook_path}")
+                return {"path": notebook_path, "explicit": True}
         return None
     
     def run_analysis(self, user_query, **kwargs):
         """Run the data science agent analysis"""
-        try:
-            # Initialize shared state
-            shared = {
-                "user_query": user_query,
-                "timestamp": kwargs.get("timestamp", ""),
-                "history": kwargs.get("history", ""),
-                **kwargs
-            }
-            
-            logger.info(f"🤖 Starting agent analysis for: {user_query[:50]}...")
-            logger.debug(f"Agent context: history={bool(kwargs.get('history'))}, timestamp={kwargs.get('timestamp')}")
-            
-            # Run the agent
-            self.run(shared)
-            
-            logger.info(f"🤖 Agent analysis completed - Success: {shared.get('analysis_complete', False)}")
-            logger.debug(f"Actions taken: {shared.get('action_history', [])}")
-            
-            # Return results
-            return {
-                "success": shared.get("analysis_complete", False),
-                "response": shared.get("final_response", "No response generated"),
-                "context_loaded": bool(shared.get("repo_context", "")),
+        # Initialize shared state
+        shared = {
+            "user_query": user_query,
+            "timestamp": kwargs.get("timestamp", ""),
+            "history": kwargs.get("history", ""),
+            **kwargs
+        }
+        
+        logger.info(f"🤖 Starting agent analysis for: {user_query[:50]}...")
+        logger.debug(f"Agent context: history={bool(kwargs.get('history'))}, timestamp={kwargs.get('timestamp')}")
+        
+        # Run the agent workflow
+        self.run(shared)
+        
+        logger.info(f"🤖 Agent analysis completed - Success: {shared.get('analysis_complete', False)}")
+        logger.debug(f"Actions taken: {shared.get('action_history', [])}")
+        
+        # Return results
+        return {
+            "success": shared.get("analysis_complete", False),
+            "response": shared.get("final_response", "No response generated"),
+            "context_loaded": bool(shared.get("repo_context", "")),
+            "notebook_loaded": bool(shared.get("notebook_content", "")),
+            "notebook_path": shared.get("notebook_path", "") if shared.get("notebook_explicit", False) else "",
+            "action_history": shared.get("action_history", []),
+            "processing_summary": {
+                "repo_context_loaded": bool(shared.get("repo_context", "")),
                 "notebook_loaded": bool(shared.get("notebook_content", "")),
-                "notebook_path": shared.get("notebook_path", "") if shared.get("notebook_explicit", False) else "",
-                "action_history": shared.get("action_history", []),
-                "processing_summary": {
-                    "repo_context_loaded": bool(shared.get("repo_context", "")),
-                    "notebook_loaded": bool(shared.get("notebook_content", "")),
-                    "analysis_complete": shared.get("analysis_complete", False),
-                    "actions_taken": len(shared.get("action_history", []))
-                }
+                "analysis_complete": shared.get("analysis_complete", False),
+                "actions_taken": len(shared.get("action_history", []))
             }
-            
-        except Exception as e:
-            logger.error(f"❌ Agent analysis error: {e}")
-            return {
-                "success": False,
-                "response": f"Agent analysis error: {str(e)}",
-                "error": str(e),
-                "processing_summary": {
-                    "repo_context_loaded": False,
-                    "notebook_loaded": False,
-                    "analysis_complete": False,
-                    "actions_taken": 0
-                }
-            }
+        }
     
-    def post(self, shared, _prep_res, exec_res):
+    def post(self, shared, prep_res, exec_res):
         """Agent completion"""
         shared["agent_completed"] = True
         logger.info(f"🤖 Agent completed - Actions taken: {len(shared.get('action_history', []))}")
