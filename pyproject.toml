@@ -6,7 +6,7 @@ readme = "README.md"
 authors = [
     { name = "S R Das", email = "srdas@scu.edu" }
 ]
-requires-python = "3.13.0"
+requires-python = "3.13.1"
 
 dependencies = [
     "jupyter_ai>=3.0.0a1"
