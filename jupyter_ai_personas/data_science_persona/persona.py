@@ -165,14 +165,12 @@ class DataSciencePersona(BasePersona):
                 "current_message": message.body
             }
             
-            # Add persistent notebook information if available
             if self._persistent_notebook_path and self._persistent_notebook_content:
                 context_info["persistent_notebook_path"] = self._persistent_notebook_path
                 context_info["persistent_notebook_content"] = self._persistent_notebook_content
                 logger.info(f"🔄 Using persistent notebook: {self._persistent_notebook_path}")
             
             return context_info
-            
         except Exception as e:
             logger.error(f"Context preparation error: {e}")
             return {}
