@@ -11,11 +11,11 @@ from pathlib import Path
 
 # Import our core RAG system
 try:
-    from .rag_core import PythonDSHandbookRAG, create_handbook_rag
+    from .rag_core import create_handbook_rag
     RAG_CORE_AVAILABLE = True
 except ImportError:
     try:
-        from rag_core import PythonDSHandbookRAG, create_handbook_rag
+        from rag_core import create_handbook_rag
         RAG_CORE_AVAILABLE = True
     except ImportError:
         RAG_CORE_AVAILABLE = False
@@ -302,29 +302,16 @@ def create_simple_rag_tools(force_rebuild: bool = False) -> RAGSearchTool:
     """
     return RAGSearchTool(force_rebuild=force_rebuild)
 
-# Quick test function
-def test_rag_integration():
-    """Test the RAG integration tool."""
-    print("Testing RAG integration tool...")
-    
+if __name__ == "__main__":
+    # Simple integration test when run directly
     try:
         rag_tool = create_simple_rag_tools()
-        
-        # Test basic search
         result = rag_tool.search_repository("pandas dataframe", k=2)
         result_data = json.loads(result)
         
         if result_data.get("search_successful"):
-            print("RAG integration test successful!")
-            print(f"Found {result_data['total_results']} results")
-            return True
+            print(f"RAG integration test successful! Found {result_data['total_results']} results")
         else:
             print(f"RAG integration test failed: {result_data.get('error')}")
-            return False
-            
     except Exception as e:
-        print(f"RAG integration test failed with exception: {e}")
-        return False
-
-if __name__ == "__main__":
-    test_rag_integration()
+        print(f"RAG integration test failed: {e}")

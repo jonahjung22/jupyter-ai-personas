@@ -12,33 +12,20 @@ from typing import List, Dict, Any, Optional
 import logging
 import pandas as pd
 
-# Suppress HuggingFace tokenizers fork warning
-os.environ["TOKENIZERS_PARALLELISM"] = "false"
-
 import nbformat
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.schema import Document
+from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_community.vectorstores import Chroma
 
-# Updated imports for LangChain community packages
-try:
-    from langchain_community.embeddings import HuggingFaceEmbeddings
-except ImportError:
-    from langchain.embeddings import HuggingFaceEmbeddings
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
-try:
-    from langchain_community.vectorstores import Chroma
-except ImportError:
-    from langchain.vectorstores import Chroma
-
-# Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
 
 class PythonDSHandbookRAG:
     """Core RAG system for Python Data Science Handbook notebooks."""
     
-    # Class-level cache for embeddings to avoid re-initialization
     _embeddings_cache = {}
     
     def __init__(
@@ -77,17 +64,13 @@ class PythonDSHandbookRAG:
         self.chunk_size = chunk_size
         self.chunk_overlap = chunk_overlap
         
-        # Log paths for debugging
         logger.info(f"📁 Repository path: {self.local_repo_path}")
         logger.info(f"📦 Vector store path: {self.vector_store_path}")
         
-        # Initialize components
         self.embeddings = None
         self.vectorstore = None
         self.documents = []
         self._embeddings_cache = {}
-        
-        # Ensure directories exist
         self.vector_store_path.mkdir(parents=True, exist_ok=True)
         
     def setup_repository(self, force_clone: bool = False) -> bool:

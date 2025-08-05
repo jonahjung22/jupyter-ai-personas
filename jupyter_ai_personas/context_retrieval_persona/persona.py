@@ -8,17 +8,9 @@ from agno.tools.file import FileTools
 import boto3
 from langchain_core.messages import HumanMessage
 from .file_reader_tool import NotebookReaderTool
-
-# Import RAG functionality - simple import with fallback
-try:
-    from .rag_integration_tool import create_simple_rag_tools
-    print("✅ RAG tools loaded successfully")
-except ImportError:
-    print("⚠️ RAG tools not available, using FileTools fallback")
-    create_simple_rag_tools = None
+from .rag_integration_tool import create_simple_rag_tools
 
 session = boto3.Session()
-
 
 class ContextRetrievalPersona(BasePersona):
     """
@@ -56,23 +48,18 @@ class ContextRetrievalPersona(BasePersona):
 
     def get_knowledge_tools(self):
         """Get knowledge search tools - RAG if available, FileTools as fallback."""
-        if create_simple_rag_tools:
-            try:
-                return [create_simple_rag_tools()]
-            except:
-                pass
-        
-        # Fallback to FileTools
-        return [FileTools()]
+        try:
+            return [create_simple_rag_tools()]
+        except Exception:
+            # Fallback to FileTools if RAG is not available
+            return [FileTools()]
 
     def initialize_context_retrieval_team(self, system_prompt: str):
         """Initialize the 3-agent context retrieval team."""
         model_id = self.config_manager.lm_provider_params["model_id"]
-        # Initialize tools
         notebook_tools = [NotebookReaderTool()]
         knowledge_tools = self.get_knowledge_tools()
         
-        # 1. NotebookAnalyzer Agent
         notebook_analyzer = Agent(
             name="NotebookAnalyzer",
             role="Notebook analysis specialist that extracts context for search",
@@ -93,7 +80,6 @@ class ContextRetrievalPersona(BasePersona):
             show_tool_calls=True
         )
         
-        # 2. KnowledgeSearcher Agent
         knowledge_searcher = Agent(
             name="KnowledgeSearcher",
             role="Repository search specialist that finds relevant handbook content",
@@ -114,7 +100,6 @@ class ContextRetrievalPersona(BasePersona):
             show_tool_calls=True
         )
         
-        # 3. MarkdownGenerator Agent
         markdown_generator = Agent(
             name="MarkdownGenerator", 
             role="Content synthesis specialist that creates markdown reports",
@@ -157,19 +142,14 @@ class ContextRetrievalPersona(BasePersona):
             add_datetime_to_instructions=True,
             show_tool_calls=True
         )
-        
         return context_team
 
     def is_greeting(self, message_text: str) -> bool:
         """Check if the message is a greeting or simple conversation."""
-        greeting_patterns = [
-            "hello", "hi", "hey", "good morning", "good afternoon", "good evening",
-            "how are you", "what's up", "greetings", "salutations", "howdy",
-            "what can you do", "help", "who are you", "introduce yourself"
-        ]
-        
+        greetings = {"hello", "hi", "hey", "help", "who are you"}
         message_lower = message_text.lower().strip()
-        return any(pattern in message_lower for pattern in greeting_patterns)
+        return any(greeting in message_lower for greeting in greetings) or \
+               message_lower.startswith(("good ", "what", "how are"))
 
     async def process_message(self, message: Message):
         """Process messages using the context retrieval team."""
@@ -180,20 +160,20 @@ class ContextRetrievalPersona(BasePersona):
         if self.is_greeting(message_text):
             greeting_response = """👋 Hello! I'm your Context Retrieval Persona.
 
-                                I help analyze your data science work and find relevant resources from the Python Data Science Handbook using RAG search.
+I help analyze your data science work and find relevant resources from the Python Data Science Handbook using RAG search.
 
-                                **How to use me:**
-                                - Ask me questions about data science concepts, techniques, or problems
-                                - Include `notebook: /path/to/your/notebook.ipynb` to analyze your current work
-                                - I'll search the Python Data Science Handbook and create a comprehensive report
+**How to use me:**
+- Ask me questions about data science concepts, techniques, or problems
+- Include `notebook: /path/to/your/notebook.ipynb` to analyze your current work
+- I'll search the Python Data Science Handbook and create a comprehensive report
 
-                                **I can help with:**
-                                - Finding relevant code examples for your analysis
-                                - Semantic search through data science documentation
-                                - Context-aware recommendations based on your notebook
-                                - Best practices and patterns for data science workflows
+**I can help with:**
+- Finding relevant code examples for your analysis
+- Semantic search through data science documentation
+- Context-aware recommendations based on your notebook
+- Best practices and patterns for data science workflows
 
-                                What would you like help with today?"""
+What would you like help with today?"""
             
             async def response_iterator():
                 yield greeting_response
@@ -207,7 +187,6 @@ class ContextRetrievalPersona(BasePersona):
         # Get chat history
         history = YChatHistory(ychat=self.ychat, k=2)
         messages = await history.aget_messages()
-
         history_text = ""
         if messages:
             history_text = "\nPrevious conversation:\n"
@@ -215,7 +194,6 @@ class ContextRetrievalPersona(BasePersona):
                 role = "User" if isinstance(msg, HumanMessage) else "Assistant"
                 history_text += f"{role}: {msg.content}\n"
 
-        # Create system prompt
         system_prompt = f"""
                         Context Retrieval Session:
                         Model: {model_id}
@@ -226,9 +204,8 @@ class ContextRetrievalPersona(BasePersona):
                         Goal: Analyze notebook context and find relevant Python Data Science Handbook content.
                         """
 
-        # Initialize and run team
         context_team = self.initialize_context_retrieval_team(system_prompt)
-        
+
         try:
             response = context_team.run(
                 message_text,
@@ -245,5 +222,5 @@ class ContextRetrievalPersona(BasePersona):
 
         async def response_iterator():
             yield response_content
-        
+            
         await self.stream_message(response_iterator())
