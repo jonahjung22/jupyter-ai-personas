@@ -51,7 +51,6 @@ class ContextRetrievalPersona(BasePersona):
         try:
             return [create_simple_rag_tools()]
         except Exception:
-            # Fallback to FileTools if RAG is not available
             return [FileTools()]
 
     def initialize_context_retrieval_team(self, system_prompt: str):
@@ -122,7 +121,6 @@ class ContextRetrievalPersona(BasePersona):
             show_tool_calls=True
         )
         
-        # Create team
         context_team = Team(
             name="context-retrieval-team",
             mode="coordinate",

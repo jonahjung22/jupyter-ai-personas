@@ -38,11 +38,8 @@ class PythonDSHandbookRAG:
         chunk_overlap: int = 300
     ):
         self.repo_url = repo_url
-        
-        # Get the directory where this script is located for absolute paths
         script_dir = Path(__file__).parent.absolute()
         
-        # Set default paths relative to the script directory (data_science_persona)
         if local_repo_path is None:
             local_repo_path = script_dir / "PythonDataScienceHandbook"
         else:
@@ -92,7 +89,6 @@ class PythonDSHandbookRAG:
                     logger.info("Skipping repository update for faster loading")
                 return True
             
-            # Clone repository
             if self.local_repo_path.exists():
                 shutil.rmtree(self.local_repo_path)
                 
@@ -102,7 +98,6 @@ class PythonDSHandbookRAG:
                 check=True, capture_output=True, text=True
             )
             
-            # Verify notebooks directory exists
             if not self.notebooks_path.exists():
                 logger.error(f"Notebooks directory not found at {self.notebooks_path}")
                 return False
@@ -130,11 +125,8 @@ class PythonDSHandbookRAG:
         
         for notebook_path in notebook_files:
             try:
-                # Read notebook
                 with open(notebook_path, 'r', encoding='utf-8') as f:
                     nb = nbformat.read(f, as_version=4)
-                
-                # Extract content from each cell
                 for cell_idx, cell in enumerate(nb.cells):
                     cell_content = cell.get('source', '').strip()
                     if not cell_content:
@@ -152,9 +144,8 @@ class PythonDSHandbookRAG:
                         }
                     )
                     documents.append(doc)
-                
                 logger.info(f"Extracted {len([c for c in nb.cells if c.get('source')])} cells from {notebook_path.name}")
-                
+
             except Exception as e:
                 logger.error(f"Failed to process {notebook_path}: {e}")
                 continue
@@ -177,10 +168,9 @@ class PythonDSHandbookRAG:
             separators=["\n\n", "\n", " ", ""]
         )
         
-        # Split documents
         chunked_docs = text_splitter.split_documents(documents)
         
-        # Add chunk metadata
+        # Adds chunk metadata
         for i, doc in enumerate(chunked_docs):
             doc.metadata['chunk_id'] = i
             doc.metadata['chunk_size'] = len(doc.page_content)
@@ -203,8 +193,6 @@ class PythonDSHandbookRAG:
                 model_kwargs={'device': 'cpu'},
                 encode_kwargs={'normalize_embeddings': True}
             )
-            
-            # Cache the embeddings for future use
             self._embeddings_cache[self.embedding_model] = self.embeddings
             return True
         except Exception as e:
@@ -218,7 +206,6 @@ class PythonDSHandbookRAG:
             logger.info("✅ Using existing vector store (fast loading)")
             return self._load_existing_vector_store()
         
-        # Extract and chunk documents
         documents = self.extract_notebook_content()
         if not documents:
             logger.error("No documents extracted for vector store")
@@ -229,12 +216,10 @@ class PythonDSHandbookRAG:
             logger.error("No chunks created for vector store")
             return False
         
-        # Initialize embeddings
         if not self.initialize_embeddings():
             return False
         
         try:
-            # Create vector store
             logger.info("Creating Chroma vector store...")
             self.vectorstore = Chroma.from_documents(
                 documents=chunked_docs,
@@ -243,12 +228,9 @@ class PythonDSHandbookRAG:
                 collection_name="python_ds_handbook"
             )
             
-            # Persist the vector store
             self.vectorstore.persist()
-            
-            # Save metadata
             self._save_vector_store_metadata(len(documents), len(chunked_docs))
-            
+
             logger.info(f"Vector store built successfully with {len(chunked_docs)} chunks")
             return True
             
@@ -269,19 +251,15 @@ class PythonDSHandbookRAG:
         """Load existing vector store."""
         try:
             logger.info("Loading existing vector store...")
-            
-            # Initialize embeddings
             if not self.initialize_embeddings():
                 return False
             
-            # Load vector store
             self.vectorstore = Chroma(
                 persist_directory=str(self.vector_store_path),
                 embedding_function=self.embeddings,
                 collection_name="python_ds_handbook"
             )
             
-            # Load metadata
             metadata = self._load_vector_store_metadata()
             logger.info(f"Loaded vector store with {metadata.get('total_chunks', 'unknown')} chunks")
             return True
@@ -329,7 +307,6 @@ class PythonDSHandbookRAG:
             else:
                 docs = self.vectorstore.similarity_search(query, k=k)
             
-            # Format results
             results = []
             for i, doc in enumerate(docs, 1):
                 result = {
@@ -340,8 +317,7 @@ class PythonDSHandbookRAG:
                     'cell_type': doc.metadata.get('cell_type', 'unknown')
                 }
                 results.append(result)
-                
-                # Log detailed search result with full content
+
                 logger.info(f"📚 Result {i}: {result['notebook_name']} ({result['cell_type']})")
                 logger.info(f"   Source: {result['source']}")
                 logger.info(f"   Content Length: {len(result['content'])} characters")
@@ -417,10 +393,8 @@ class PythonDSHandbookRAG:
         logger.info("RAG system initialization completed successfully!")
         return True
 
-# Global instance cache for singleton behavior
 _rag_instance_cache = {}
 
-# Convenience function for quick setup
 def create_handbook_rag(force_rebuild: bool = False) -> PythonDSHandbookRAG:
     """Create and initialize Python Data Science Handbook RAG system."""
     cache_key = "default"
@@ -430,11 +404,9 @@ def create_handbook_rag(force_rebuild: bool = False) -> PythonDSHandbookRAG:
         logger.info("🚀 Using cached RAG instance (instant loading)")
         return _rag_instance_cache[cache_key]
     
-    # Create new instance
     rag = PythonDSHandbookRAG()
     
     if rag.initialize_full_system(force_rebuild=force_rebuild):
-        # Cache the instance for future use
         _rag_instance_cache[cache_key] = rag
         return rag
     else:
@@ -452,7 +424,6 @@ def test_rag_system():
         logger.error("RAG system initialization failed")
         return False
     
-    # Test search
     results = rag.search("pandas dataframe groupby", k=3)
     if results:
         logger.info(f"Test successful! Found {len(results)} results")

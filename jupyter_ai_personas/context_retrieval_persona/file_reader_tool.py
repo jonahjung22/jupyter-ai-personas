@@ -31,21 +31,17 @@ class NotebookReaderTool(Toolkit):
             with open(notebook_path, 'r', encoding='utf-8') as f:
                 notebook = json.load(f)
             
-            # Extract notebook metadata
+            # Extract notebook metadata and cells
             context = f"=== NOTEBOOK ANALYSIS ===\n"
             context += f"File: {notebook_path}\n"
             context += f"Kernel: {notebook.get('metadata', {}).get('kernelspec', {}).get('display_name', 'Unknown')}\n"
             context += f"Language: {notebook.get('metadata', {}).get('kernelspec', {}).get('language', 'Unknown')}\n\n"
-            
-            # Extract cells content
             cells = notebook.get('cells', [])
             context += f"=== NOTEBOOK CONTENT ({len(cells)} cells) ===\n\n"
             
             for i, cell in enumerate(cells, 1):
                 cell_type = cell.get('cell_type', 'unknown')
                 context += f"--- Cell {i} ({cell_type.upper()}) ---\n"
-                
-                # Get cell source
                 source = cell.get('source', [])
                 if isinstance(source, list):
                     source_text = ''.join(source)
@@ -62,8 +58,6 @@ class NotebookReaderTool(Toolkit):
                         for j, output in enumerate(outputs):
                             output_type = output.get('output_type', 'unknown')
                             context += f"  Output {j+1} ({output_type}):\n"
-                            
-                            # Handle different output types
                             if output_type == 'stream':
                                 text = ''.join(output.get('text', []))
                                 context += f"    {text}\n"
@@ -118,21 +112,19 @@ class NotebookReaderTool(Toolkit):
                 else:
                     source_text = str(source)
                 
-                # Look for import statements
                 lines = source_text.split('\n')
                 for line in lines:
                     line = line.strip()
                     if line.startswith('import ') or line.startswith('from '):
                         imports.append(line)
         
-        return list(set(imports))  # Remove duplicates
+        return list(set(imports))
     
     def _extract_data_science_context(self, notebook: Dict[str, Any]) -> str:
         """Extract data science context from notebook content."""
         context_items = []
         cells = notebook.get('cells', [])
         
-        # Common data science patterns
         ds_patterns = {
             'pandas': ['pd.read_', 'DataFrame', '.head()', '.describe()', '.info()'],
             'numpy': ['np.array', 'np.mean', 'np.std', 'numpy'],
@@ -158,12 +150,11 @@ class NotebookReaderTool(Toolkit):
                         if pattern.lower() in source_text.lower():
                             detected[category].append(pattern)
         
-        # Build context description
         active_categories = {k: list(set(v)) for k, v in detected.items() if v}
         
         if active_categories:
             context_items.append("Analysis stage indicators:")
             for category, patterns in active_categories.items():
-                context_items.append(f"  {category}: {', '.join(patterns[:3])}")  # Limit to 3 examples
+                context_items.append(f"  {category}: {', '.join(patterns[:3])}")
         
         return '\n'.join(context_items) if context_items else ""

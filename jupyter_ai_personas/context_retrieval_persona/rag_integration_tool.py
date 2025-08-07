@@ -23,7 +23,6 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
-
 class RAGSearchTool(Toolkit):
     """Agno tool for searching Python Data Science Handbook using RAG."""
     
@@ -39,11 +38,8 @@ class RAGSearchTool(Toolkit):
         self.rag_system = None
         self.force_rebuild = force_rebuild
         self.initialization_error = None
-        
-        # Initialize RAG system
         self._initialize_rag_system()
         
-        # Register tool methods
         self.register(self.search_repository)
         self.register(self.search_by_topic)
         self.register(self.search_code_examples)
