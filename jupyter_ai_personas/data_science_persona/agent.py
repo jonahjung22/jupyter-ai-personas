@@ -23,7 +23,6 @@ class DataScienceAgent(Flow):
         self._current_notebook_path = None
         self._current_notebook_content = None
         
-        # Initialize nodes
         self.decide_node = DecideAction(model_client=model_client)
         self.greeting_node = GreetingNode(model_client=model_client)
         self.analyze_node = DataAnalysisNode(model_client=model_client)
@@ -31,17 +30,14 @@ class DataScienceAgent(Flow):
         self.ml_training_node = MLTrainingNode(model_client=model_client)
         self.complete_node = CompleteAnalysisNode(model_client=model_client)
         
-        # Set up the agent flow
         self.start(self.decide_node)
         
-        # Connect decision node to action nodes
         self.decide_node - "greeting" >> self.greeting_node
         self.decide_node - "analyze" >> self.analyze_node
         self.decide_node - "recommend_data" >> self.data_recommendation_node
         self.decide_node - "ml_training" >> self.ml_training_node
         self.decide_node - "complete" >> self.complete_node
         
-        # Connect analysis node back to decision (for iterative analysis)
         self.analyze_node - "decide" >> self.decide_node
         self.greeting_node - "complete" >> self.complete_node
         self.ml_training_node - "decide" >> self.decide_node
@@ -50,7 +46,6 @@ class DataScienceAgent(Flow):
     def prep(self, shared):
         """Agent preparation - load context"""
 
-        # Load repo and notebook context
         repo_context = self._load_repo_context()
         shared["repo_context"] = repo_context
         logger.info(f"📋 Repo context: {'✅ Loaded' if repo_context else '❌ Not found'}")
@@ -66,11 +61,9 @@ class DataScienceAgent(Flow):
         if notebook_path:
             logger.info(f"📁 Notebook path: {notebook_path} ({'explicit' if is_explicit else 'auto-discovered'})")
         
-        # Comprehensive data analysis - available to all nodes
         logger.info("📊 Starting comprehensive data analysis...")
         data_analysis = self._analyze_all_available_data(user_query, notebook_content)
         
-        # Add to shared state for all nodes
         shared["data_analysis"] = data_analysis
         shared["has_data"] = data_analysis.get("success", False)
         shared["data_characteristics"] = data_analysis.get("characteristics", {})
@@ -82,7 +75,6 @@ class DataScienceAgent(Flow):
             logger.info(f"📋 Data shape: {chars.get('shape', 'unknown')}")
             logger.info(f"🎯 Suggested domain: {data_analysis.get('primary_domain', 'unknown')}")
 
-        # Initialize tracking
         shared["action_history"] = []
         shared["analysis_complete"] = False
         
@@ -103,11 +95,10 @@ class DataScienceAgent(Flow):
             return {
                 "success": False,
                 "error": "No notebook content available",
-                "primary_domain": "tabular"  # Safe fallback
+                "primary_domain": "tabular"
             }
         
         try:
-            # Analyze the notebook content for data characteristics
             analysis = self._analyze_notebook_data_characteristics(notebook_content)
             
             if analysis.get("success"):
@@ -123,7 +114,7 @@ class DataScienceAgent(Flow):
             return {
                 "success": False,
                 "error": f"Analysis failed: {e}",
-                "primary_domain": "tabular"  # Safe fallback
+                "primary_domain": "tabular"
             }
     
     def _analyze_notebook_data_characteristics(self, notebook_content):
@@ -141,7 +132,6 @@ class DataScienceAgent(Flow):
             logger.info("🔍 Searching for DataFrame patterns in notebook...")
             print("🔍 DATA TRACKER: Searching for DataFrame patterns")
             
-            # Look for DataFrame variables and operations
             dataframe_indicators = [
                 r"(\w+)\s*=.*?pd\.read_\w+\(",  # df = pd.read_csv()
                 r"(\w+)\s*=.*?DataFrame",        # df = DataFrame()
@@ -159,12 +149,11 @@ class DataScienceAgent(Flow):
             if found_variables:
                 analysis_result["data_found"] = True
                 analysis_result["success"] = True
-                primary_var = list(found_variables)[0]  # Use first found variable
+                primary_var = list(found_variables)[0]
                 analysis_result["variable_name"] = primary_var
                 logger.info(f"📋 Found DataFrame variable: {primary_var}")
                 print(f"📋 DATA TRACKER: Found DataFrame variable '{primary_var}'")
             
-            # Look for shape information
             shape_patterns = [
                 r"\((\d+),\s*(\d+)\)",           # (1000, 5)
                 r"(\d+)\s+rows?\s+×?\s*(\d+)\s+columns?",  # 1000 rows × 5 columns
@@ -181,42 +170,37 @@ class DataScienceAgent(Flow):
                     print(f"📐 SHAPE TRACKER: ({rows}, {cols})")
                     break
             
-            # Look for column information
             column_patterns = [
-                r"Index:\s*\[(.*?)\]",           # Index: ['col1', 'col2']
-                r"Columns:\s*\[(.*?)\]",         # Columns: ['col1', 'col2'] 
-                r"columns=\[(.*?)\]",            # columns=['col1', 'col2']
-                r"\.columns\s*=\s*\[(.*?)\]",    # df.columns = ['col1', 'col2']
-                r"columns:\s*\[(.*?)\]",         # columns: ['col1', 'col2']
-                r"Index\(.*?\[(.*?)\]",          # Index(...['col1', 'col2'])
+                r"Index:\s*\[(.*?)\]",
+                r"Columns:\s*\[(.*?)\]",
+                r"columns=\[(.*?)\]",
+                r"\.columns\s*=\s*\[(.*?)\]",
+                r"columns:\s*\[(.*?)\]",
+                r"Index\(.*?\[(.*?)\]",
             ]
             
             columns_found = []
             for pattern in column_patterns:
                 matches = re.findall(pattern, notebook_content, re.IGNORECASE | re.DOTALL)
                 if matches:
-                    # Extract column names from the match
                     col_text = matches[0]
-                    # Find quoted strings
                     col_names = re.findall(r"['\"]([^'\"]+)['\"]", col_text)
                     if col_names:
-                        columns_found = col_names[:10]  # Limit to first 10 columns
+                        columns_found = col_names[:10]
                         analysis_result["characteristics"]["columns"] = columns_found
                         logger.info(f"📋 Found columns: {columns_found}")
                         print(f"📋 COLUMNS TRACKER: {len(columns_found)} columns found")
                         break
             
-            # Domain detection based on content patterns
             domain_scores = {"Tabular": 0, "Time-Series": 0, "Multivariate": 0}
             
-            # Tabular indicators
             tabular_keywords = [
                 r"classification", r"regression", r"predict", r"model\.fit",
                 r"train_test_split", r"cross_validation", r"accuracy", r"precision",
                 r"recall", r"sklearn", r"RandomForest", r"XGBoost", r"LogisticRegression"
             ]
             
-            tabular_score = 10  # Base score for general tabular analysis
+            tabular_score = 10
             for keyword in tabular_keywords:
                 if re.search(keyword, notebook_content, re.IGNORECASE):
                     tabular_score += 5
@@ -225,7 +209,6 @@ class DataScienceAgent(Flow):
             logger.info(f"📊 Tabular indicators found (score: {tabular_score})")
             print(f"📊 TABULAR TRACKER: Score {tabular_score}")
             
-            # Time series indicators
             time_keywords = [
                 r"pd\.to_datetime", r"datetime", r"timestamp", r"date", 
                 r"time_series", r"forecast", r"trend", r"seasonal"
@@ -241,7 +224,6 @@ class DataScienceAgent(Flow):
                 logger.info(f"🕒 Time series indicators found (score: {time_score})")
                 print(f"🕒 TIMESERIES TRACKER: Score {time_score}")
             
-            # Multimodal indicators
             multimodal_keywords = [
                 r"text", r"image", r"nlp", r"cv2", r"PIL", 
                 r"tokeniz", r"embedding", r"vision", r"language"
@@ -257,7 +239,6 @@ class DataScienceAgent(Flow):
                 logger.info(f"🎭 Multimodal indicators found (score: {multimodal_score})")
                 print(f"🎭 MULTIMODAL TRACKER: Score {multimodal_score}")
             
-            # Determine primary domain
             primary_domain = max(domain_scores.items(), key=lambda x: x[1])[0]
             suggested_domains = [domain for domain, score in domain_scores.items() if score > 0]
             
@@ -267,7 +248,6 @@ class DataScienceAgent(Flow):
                 "domain_scores": domain_scores
             })
             
-            # Look for target column hints
             target_patterns = [
                 r"target\s*=\s*['\"]?(\w+)['\"]?",      # target = 'column_name'
                 r"y\s*=\s*.*?\[?\s*['\"](\w+)['\"]",   # y = df['column_name']
@@ -284,7 +264,6 @@ class DataScienceAgent(Flow):
                         print(f"🎯 TARGET TRACKER: Found '{matches[0]}'")
                     break
             
-            # Enhance data summary
             if analysis_result["data_found"]:
                 shape_info = analysis_result["characteristics"].get("shape", "unknown")
                 col_count = len(columns_found) if columns_found else "unknown"
@@ -320,13 +299,11 @@ class DataScienceAgent(Flow):
         try:
             logger.debug(f"Loading notebook content for query: {user_query[:50]}...")
             
-            # Extract notebook path from query or find default
             notebook_info = self._extract_notebook_path(user_query)
             logger.debug(f"Extracted notebook info: {notebook_info}")
             
             if not notebook_info:
                 if self._current_notebook_path and self._current_notebook_content:
-                    # Use cached notebook if no new path provided
                     logger.info(f"🔄 Using cached notebook: {self._current_notebook_path}")
                     return self._current_notebook_content, self._current_notebook_path, False
                 else:
@@ -336,7 +313,6 @@ class DataScienceAgent(Flow):
             notebook_path = notebook_info["path"]
             is_explicit = notebook_info["explicit"]
             
-            # Check if we have a new notebook path
             if str(notebook_path) != self._current_notebook_path:
                 logger.info(f"📖 Loading {'explicit' if is_explicit else 'auto-discovered'} notebook: {notebook_path}")
                 notebook_tool = NotebookReaderTool()
@@ -347,13 +323,11 @@ class DataScienceAgent(Flow):
                     logger.error(f"❌ Notebook reading failed: {content}")
                     return "", str(notebook_path), is_explicit
                 else:
-                    # Cache the notebook content
                     self._current_notebook_path = str(notebook_path)
                     self._current_notebook_content = content
                     logger.info(f"✅ Successfully loaded and cached notebook: {notebook_path}")
                     return content, str(notebook_path), is_explicit
             else:
-                # Same path as before, use cached content
                 logger.info(f"🔄 Using cached notebook content for: {notebook_path}")
                 return self._current_notebook_content or "", str(notebook_path), is_explicit
             
@@ -366,14 +340,12 @@ class DataScienceAgent(Flow):
         """Extract notebook path from query"""
         import re
         
-        # Find all .ipynb file mentions in query
         ipynb_matches = re.findall(r'[\w\-_./\\]+\.ipynb', query)
         if not ipynb_matches:
             return None
         
         working_dir = Path.cwd()
         
-        # Try each match until we find an existing file
         for match in ipynb_matches:
             notebook_path = Path(match)
             if not notebook_path.is_absolute():
@@ -385,7 +357,6 @@ class DataScienceAgent(Flow):
     
     def run_analysis(self, user_query, **kwargs):
         """Run the data science agent analysis"""
-        # Initialize shared state
         shared = {
             "user_query": user_query,
             "timestamp": kwargs.get("timestamp", ""),
@@ -396,13 +367,11 @@ class DataScienceAgent(Flow):
         logger.info(f"🤖 Starting agent analysis for: {user_query[:50]}...")
         logger.debug(f"Agent context: history={bool(kwargs.get('history'))}, timestamp={kwargs.get('timestamp')}")
         
-        # Run the agent workflow
         self.run(shared)
         
         logger.info(f"🤖 Agent analysis completed - Success: {shared.get('analysis_complete', False)}")
         logger.debug(f"Actions taken: {shared.get('action_history', [])}")
         
-        # Return results
         return {
             "success": shared.get("analysis_complete", False),
             "response": shared.get("final_response", "No response generated"),

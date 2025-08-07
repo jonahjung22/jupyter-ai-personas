@@ -1,12 +1,14 @@
 import logging
+import re
 import requests
 import urllib.parse
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
+import urllib.parse
+from bs4 import BeautifulSoup
 
 logger = logging.getLogger(__name__)
 
-# Shared keyword definitions for consistency across detection methods
 TIMESERIES_KEYWORDS = ['time series', 'timeseries', 'temporal', 'forecast', 'forecasting', 'sequential', 'time-based', 
                       'stock', 'weather', 'climate', 'sales', 'financial', 'daily', 'hourly', 'monthly', 'yearly', 'seasonal']
 
@@ -46,20 +48,20 @@ class Dataset:
     domain: str  # UCI official: "Tabular", "Time-Series", "Sequential", "Multivariate", etc.
     url: str
     download_url: str
+    size_mb: Optional[float] = None
     rows: Optional[int] = None
     columns: Optional[int] = None
+    file_format: str = "csv"
     tags: List[str] = None
+    difficulty: str = "beginner"  # "beginner", "intermediate", "advanced"
+    relevance_score: float = 0.0
     
     def __post_init__(self):
         if self.tags is None:
             self.tags = []
-    
-    @property
-    def size_mb(self) -> float:
-        """Estimate size in MB based on rows/columns"""
-        if self.rows and self.columns:
-            return round(self.rows * self.columns * 0.001, 2)
-        return 1.0
+        # Calculate size_mb if not provided
+        if self.size_mb is None and self.rows and self.columns:
+            self.size_mb = round(self.rows * self.columns * 0.001, 2)
 
 
 class DatasetRecommendationTool:
@@ -68,8 +70,7 @@ class DatasetRecommendationTool:
     def __init__(self):
         """Initialize the dataset recommendation tool"""
         self.sources = {
-            "uci": UCIMLRepoSource(),        # UCI ML Repository scraping
-            # "kaggle": KaggleDatasetSource()  # Kaggle dataset search
+            "uci": UCIMLRepoSource(),
         }
         logger.info("🔍 Dataset recommendation tool initialized")
     
@@ -86,6 +87,13 @@ class DatasetRecommendationTool:
             Dictionary with formatted results for agent
         """
         try:
+            # Override domain based on query indicators
+            detected_domain = self._detect_domain_from_query(user_query)
+            if detected_domain:
+                logger.info(f"🎯 Domain override: '{domain}' -> '{detected_domain}' based on query")
+                print(f"🎯 DOMAIN OVERRIDE: {domain} -> {detected_domain}")
+                domain = detected_domain
+            
             logger.info(f"🔍 Searching for datasets: query='{user_query}', domain='{domain}'")
             print(f"🔍 DATASET SEARCH: Query='{user_query}', Domain='{domain}'")
             
@@ -96,7 +104,7 @@ class DatasetRecommendationTool:
                 try:
                     logger.info(f"🔎 Searching {source_name} with semantic matching...")
                     datasets = source.search_datasets(
-                        keywords=[user_query],  # Pass full query for semantic analysis
+                        keywords=[user_query],
                         domain=domain,
                         max_results=max_results
                     )
@@ -106,13 +114,9 @@ class DatasetRecommendationTool:
                     logger.warning(f"⚠️ Error searching {source_name}: {e}")
                     continue
             
-            # Take top results (sources already return ranked results)
             top_datasets = all_datasets[:max_results]
-            
             logger.info(f"🎯 Returning {len(top_datasets)} dataset recommendations")
             print(f"🎯 DATASET RESULTS: {len(top_datasets)} recommendations found")
-            
-            # Format for agent consumption
             return self._format_for_agent(top_datasets, domain)
             
         except Exception as e:
@@ -131,16 +135,15 @@ class DatasetRecommendationTool:
                     "training_result": "## 📊 No Suitable Datasets Found\n\nNo datasets found matching your criteria. Try loading your own data with `pd.read_csv('your_data.csv')`"
                 }
             
-            # Create formatted recommendation text  
             displayed_count = min(len(datasets), 5)
             result_text = f"## 📊 Recommended Datasets\n\nBased on your query, here are {displayed_count} relevant datasets:\n\n"
             
-            for i, dataset in enumerate(datasets[:5], 1):  # Show top 5
+            for i, dataset in enumerate(datasets[:5], 1):
                 loading_code = self.generate_loading_code(dataset, "df")
                 
                 result_text += f"""### {i}. {dataset.title}
 **Source:** {dataset.source.title()} | **Domain:** {dataset.domain.title()}
-**Size:** {dataset.rows} rows × {dataset.columns} columns ({dataset.size_mb}MB)
+**Size:** {dataset.rows} rows × {dataset.columns} columns ({dataset.size_mb or 1.0}MB)
 
 {dataset.description}
 
@@ -197,6 +200,18 @@ print(f"Dataset loaded: {{len({variable_name})}} rows, {{len({variable_name}.col
             logger.warning(f"Code generation error: {e}")
             return f"# Error generating loading code for {dataset.title}"
 
+    def _detect_domain_from_query(self, user_query: str) -> str:
+        """Detect UCI domain from user query keywords"""
+        query_lower = user_query.lower()
+        
+        # Check each data type for keyword matches
+        for domain, keywords in DATA_TYPE_KEYWORDS.items():
+            if any(keyword in query_lower for keyword in keywords):
+                return domain
+        
+        # Default to None - don't override if no strong indicators
+        return None
+
 
 class UCIMLRepoSource:
     """Interface to UCI ML Repository with web scraping"""
@@ -208,8 +223,6 @@ class UCIMLRepoSource:
     def search_datasets(self, keywords: List[str], domain: str, max_results: int = 5) -> List[Dataset]:
         """Search UCI ML Repository comprehensively to find best matching datasets"""
         try:
-            import requests
-            from bs4 import BeautifulSoup
             
             logger.info("🔍 Starting comprehensive UCI database search...")
             
@@ -221,7 +234,6 @@ class UCIMLRepoSource:
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
             }
             
-            # Comprehensive search strategy: Try multiple filter combinations systematically
             search_strategies = self._generate_comprehensive_search_strategies(user_query, domain)
             
             target_dataset_count = max_results * 20  # Target 20x results for good selection
@@ -230,13 +242,12 @@ class UCIMLRepoSource:
                 try:
                     logger.info(f"📋 Strategy {i}: {strategy_name}")
                     
-                    # For each strategy, try multiple pages to get more datasets
                     strategy_datasets = 0
-                    for page in range(10):  # Keep 10 pages per strategy for good data volume
+                    for page in range(10):
                         skip = page * 100
                         
                         # Build URL with pagination
-                        if isinstance(base_params, str):  # It's already a URL
+                        if isinstance(base_params, str):
                             if '?' in base_params:
                                 url = f"{base_params}&skip={skip}&take=100"
                             else:
@@ -250,12 +261,10 @@ class UCIMLRepoSource:
                         response = requests.get(url, headers=headers, timeout=15)
                         response.raise_for_status()
                         soup = BeautifulSoup(response.content, 'html.parser')
-                        
-                        # Get all dataset links from this page
                         dataset_links = soup.find_all('a', href=lambda x: x and '/dataset/' in str(x))
                         logger.debug(f"    Found {len(dataset_links)} dataset links on page {page+1}")
                         
-                        if not dataset_links:  # No more datasets on this page
+                        if not dataset_links:
                             break
                         
                         # Process all datasets found on this page
@@ -283,14 +292,9 @@ class UCIMLRepoSource:
             
             logger.info(f"📊 Total datasets collected: {len(all_datasets)}")
             
-            # Now filter datasets using strict criteria matching
             if all_datasets:
                 logger.info(f"📊 Filtering {len(all_datasets)} datasets using strict criteria...")
-                
-                # Extract keywords from user query for filtering
                 keywords = user_query.split()
-                
-                # Apply strict filtering using _matches_criteria
                 filtered_datasets = []
                 for dataset in all_datasets:
                     if self._matches_criteria(dataset, keywords, domain):
@@ -299,9 +303,7 @@ class UCIMLRepoSource:
                 logger.info(f"✅ {len(filtered_datasets)} datasets passed criteria filter")
                 
                 if filtered_datasets:
-                    # Take the first max_results from filtered datasets
                     final_datasets = filtered_datasets[:max_results]
-                    
                     logger.info(f"🏆 Returning top {len(final_datasets)} filtered datasets:")
                     for i, ds in enumerate(final_datasets, 1):
                         logger.info(f"  {i}. {ds.title}")
@@ -323,7 +325,6 @@ class UCIMLRepoSource:
         """Generate simplified search strategies (3 essential strategies)"""
         strategies = []
         
-        # Auto-detect primary filters
         primary_data_type = self._detect_uci_data_type(user_query, domain)
         primary_task = self._detect_uci_task(user_query)
         primary_subject = self._detect_uci_subject(user_query)
@@ -340,14 +341,12 @@ class UCIMLRepoSource:
         # Strategy 3: Generic fallback
         params = ("Tabular", "Classification", "")
         strategies.append(("Fallback search", params))
-        
         logger.info(f"🎯 Generated {len(strategies)} search strategies")
         return strategies
     
     def _parse_and_score_dataset(self, link, seen_titles: set, search_domain: str = None):
         """Parse dataset, avoiding duplicates (scoring done later after filtering)"""
         try:
-            # Only process links that have text content
             title_text = link.get_text().strip()
             if not title_text or len(title_text) < 2:
                 return None
@@ -365,7 +364,6 @@ class UCIMLRepoSource:
         """Auto-detect data type filter from user query and domain"""
         query_lower = user_query.lower()
         
-        # Check each data type for keyword matches
         for data_type, keywords in DATA_TYPE_KEYWORDS.items():
             if any(kw in query_lower for kw in keywords):
                 return data_type
@@ -376,7 +374,7 @@ class UCIMLRepoSource:
         elif domain in ['Multivariate', 'Image', 'Text']:
             return 'Multivariate'
         else:
-            return 'Multivariate'  # Default to multivariate for tabular
+            return 'Multivariate'
     
     def _detect_uci_task(self, user_query: str) -> str:
         """Auto-detect task filter from user query"""
@@ -385,18 +383,16 @@ class UCIMLRepoSource:
             if any(kw in query_lower for kw in keywords):
                 return task
         if any(kw in query_lower for kw in ['timeseries', 'time series', 'temporal']) and not any(kw in query_lower for kw in ['classification', 'regression', 'clustering']):
-            return ''  # No task filter for generic timeseries
+            return ''
         
         generic_terms = ['recommend', 'data', 'dataset']
         if any(term in query_lower for term in generic_terms) and len(query_lower.split()) <= 4:
-            return ''  # No task filter for short generic queries
+            return ''
         return 'Classification'
     
     def _detect_uci_subject(self, user_query: str) -> str:
         """Auto-detect subject area filter from user query"""
         query_lower = user_query.lower()
-        
-        # Check each subject area for keyword matches
         for subject, keywords in SUBJECT_KEYWORDS.items():
             if any(kw in query_lower for kw in keywords):
                 return subject
@@ -405,36 +401,29 @@ class UCIMLRepoSource:
         generic_terms = ['recommend', 'data', 'dataset', 'classification', 'regression', 'timeseries']
         if all(term in query_lower for term in generic_terms):
             return ''
-        
-        # Default to none (no subject filter) for better variety
         return ''
     
     def _build_filter_url(self, data_type: str, task: str, subject: str, skip: int = 0, take: int = 100) -> str:
         """Build UCI filter URL using correct API format"""
-        import urllib.parse
         
         base_url = "https://archive.ics.uci.edu/datasets"
         params = {
             'skip': skip,
-            'take': take,  # Get up to 100 datasets per request
+            'take': take,
             'sort': 'desc',
-            'orderBy': 'NumHits',  # Sort by popularity/hits
+            'orderBy': 'NumHits',
             'search': ''
         }
         
-        # Add data type filter if detected (note: plural 'Types')
         if data_type:
             params['Types'] = data_type
         
-        # Add task filter if detected (note: plural 'Tasks') 
         if task:
             params['Tasks'] = task
         
-        # Add subject area filter if detected (note: plural 'Subjects')
         if subject:
             params['Subjects'] = subject
         
-        # Build query string
         query_string = urllib.parse.urlencode(params)
         filter_url = f"{base_url}?{query_string}"
         
@@ -443,7 +432,6 @@ class UCIMLRepoSource:
     def _parse_dataset_card(self, card, expected_domain: str = None):
         """Parse a dataset card from UCI website"""
         try:
-            # Extract dataset name and URL
             name = ""
             dataset_url = ""
             description = ""
@@ -473,17 +461,12 @@ class UCIMLRepoSource:
             if desc_element:
                 description = desc_element.get_text().strip()
             
-            # Extract metadata (instances, features, task type)
-            instances = 100  # default
-            attributes = 10  # default
+            instances = 100
+            attributes = 10
             task_text = ""
-            data_types_text = "Tabular"  # default, will be improved below
-            
-            # Look for metadata text
+            data_types_text = "Tabular"
             all_text = card.get_text().lower()
             
-            # Extract numbers for instances/features
-            import re
             instance_match = re.search(r'(\d+)\s*instances?', all_text)
             if instance_match:
                 instances = int(instance_match.group(1))
@@ -492,7 +475,6 @@ class UCIMLRepoSource:
             if feature_match:
                 attributes = int(feature_match.group(1))
             
-            # Extract task type
             if 'classification' in all_text:
                 task_text = "Classification"
             elif 'regression' in all_text:
@@ -500,7 +482,7 @@ class UCIMLRepoSource:
             elif 'clustering' in all_text:
                 task_text = "Clustering"
             else:
-                task_text = "Classification"  # default
+                task_text = "Classification"
             
             if expected_domain and expected_domain != "Tabular":
                 domain = expected_domain
@@ -553,7 +535,6 @@ class UCIMLRepoSource:
         tags = []
         text_lower = f"{task} {data_types} {name}".lower()
         
-        # Basic task tags
         if 'classification' in text_lower:
             tags.append('classification')
         if 'regression' in text_lower:
@@ -565,7 +546,7 @@ class UCIMLRepoSource:
         if any(kw in text_lower for kw in ['business', 'finance', 'economic']):
             tags.append('business')
             
-        return tags[:3]  # Keep it simple
+        return tags[:3]
     
     def _construct_download_url(self, dataset_url: str):
         """Use the actual dataset URL as download link"""
@@ -582,7 +563,6 @@ class UCIMLRepoSource:
         query_text = ' '.join(keywords).lower()
         important_matches = False
         
-        # Check for any important matches using shared constants
         for category_dict in [TASK_KEYWORDS, SUBJECT_KEYWORDS, DATA_TYPE_KEYWORDS]:
             for category, keywords_list in category_dict.items():
                 if any(kw in query_text for kw in keywords_list):
@@ -599,7 +579,7 @@ class UCIMLRepoSource:
         
         if important_matches:
             return True
-        elif keyword_matches >= 1:  # Reduced from 2 to 1 keyword match
+        elif keyword_matches >= 1:
             return True
         elif domain in ["Tabular", "Multivariate"] and keyword_matches > 0:
             return True
@@ -608,4 +588,3 @@ class UCIMLRepoSource:
             if any(term in ' '.join(keywords) for term in generic_terms):
                 return True
             return False
-    

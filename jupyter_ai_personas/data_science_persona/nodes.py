@@ -1,13 +1,12 @@
 import logging
 import yaml
-try:
-    from .pocketflow import Node
-    from .autogluon_tool import AutoGluonTool
-    from .dataset_recommendation_tool import DatasetRecommendationTool
-    from agno.models.message import Message as AgnoMessage
-except ImportError as e:
-    logging.error(f"Failed to import required modules: {e}")
-    raise ImportError(f"Missing dependencies for DataScienceNodes: {e}") from e
+from .pocketflow import Node
+from .autogluon_tool import AutoGluonTool
+from .dataset_recommendation_tool import DatasetRecommendationTool
+from agno.models.message import Message as AgnoMessage
+import pandas as pd
+import re
+from io import StringIO
 
 logger = logging.getLogger(__name__)
 
@@ -42,18 +41,13 @@ class DecideAction(Node):
             if not self.model_client:
                 return self._default_action(prep_res)
             
-            # Create decision prompt
             prompt = self._create_decision_prompt(prep_res)
-            
-            # Get decision from LLM
             messages = [AgnoMessage(role="user", content=prompt)]
             response = self.model_client.invoke(messages)
             
-            # Extract content from Bedrock response format
             if hasattr(response, 'content'):
                 decision_text = response.content
             elif isinstance(response, dict):
-                # Handle Bedrock response format
                 if 'output' in response and 'message' in response['output']:
                     message_content = response['output']['message']['content']
                     if isinstance(message_content, list) and len(message_content) > 0:
@@ -66,10 +60,7 @@ class DecideAction(Node):
                 decision_text = str(response)
             
             logger.debug(f"Raw LLM response: {decision_text[:200]}...")
-            
-            # Parse the decision
             decision = self._parse_decision(decision_text)
-            
             logger.info(f"🤖 Agent decided: {decision.get('action', 'unknown')}")
             return decision
             
@@ -121,7 +112,6 @@ class DecideAction(Node):
     def _parse_decision(self, decision_text):
         """Parse the LLM decision response with robust error handling"""
         try:
-            # Extract YAML content
             yaml_content = decision_text.strip()
             
             # Try to find YAML block first
@@ -131,7 +121,6 @@ class DecideAction(Node):
                 if yaml_end > yaml_start:
                     yaml_content = decision_text[yaml_start:yaml_end].strip()
             elif "```" in decision_text:
-                # Try generic code block
                 yaml_start = decision_text.find("```") + 3
                 yaml_end = decision_text.find("```", yaml_start)
                 if yaml_end > yaml_start:
@@ -139,11 +128,8 @@ class DecideAction(Node):
             
             # Clean up common YAML issues
             yaml_content = self._clean_yaml_content(yaml_content)
-            
-            # Parse YAML
             decision = yaml.safe_load(yaml_content)
             
-            # Validate required fields
             if not isinstance(decision, dict):
                 logger.warning(f"Decision is not a dict: {type(decision)}")
                 return self._extract_decision_from_text(decision_text)
@@ -166,15 +152,11 @@ class DecideAction(Node):
     
     def _clean_yaml_content(self, yaml_content):
         """Clean common YAML formatting issues"""
-        # Remove extra whitespace
         yaml_content = yaml_content.strip()
-        
-        # Fix common colon issues
         lines = yaml_content.split('\n')
         cleaned_lines = []
         for line in lines:
             if ':' in line and not line.strip().startswith('#'):
-                # Ensure there's a space after colon
                 parts = line.split(':', 1)
                 if len(parts) == 2:
                     key = parts[0].strip()
@@ -189,12 +171,9 @@ class DecideAction(Node):
     
     def _extract_decision_from_text(self, text):
         """Extract decision from text when YAML parsing fails"""
-        # Try to extract key information using simple text parsing
         decision = self._default_decision()
-        
         text_lower = text.lower()
         
-        # Extract action
         actions = ["analyze_data", "generate_code", "explain_concept", "find_issues", 
                   "create_visualization", "debug_code", "train_ml_model", 
                   "complete_analysis", "greeting", "recommend_datasets"]
@@ -204,9 +183,8 @@ class DecideAction(Node):
                 decision["action"] = action
                 break
         
-        # Extract reasoning (look for common patterns)
+        # Extract reasoning by looking for common patterns
         if "reasoning" in text_lower or "because" in text_lower:
-            # Try to extract reasoning text
             for line in text.split('\n'):
                 if any(word in line.lower() for word in ["reasoning", "because", "since"]):
                     decision["reasoning"] = line.strip()
@@ -255,12 +233,9 @@ class DecideAction(Node):
         shared["action_priority"] = exec_res.get("priority", "medium")
         shared["context_summary"] = exec_res.get("context_summary", "")
         
-        # Track action history
         action_history = shared.get("action_history", [])
         action_history.append(exec_res.get("action", "complete_analysis"))
         shared["action_history"] = action_history
-        
-        # Return next node based on action
         action = exec_res.get("action", "complete_analysis")
         
         if action in ["analyze_data", "find_issues", "debug_code"]:
@@ -277,7 +252,6 @@ class DecideAction(Node):
             return "greeting"
         else:
             return "complete"
-
 
 class GreetingNode(Node):
     """Node for handling greetings and introductions"""
@@ -304,7 +278,6 @@ class GreetingNode(Node):
             is_greeting = any(word in query_lower for word in greeting_words)
             
             if is_greeting and len(prep_res.get("user_query", "").split()) <= 5:
-                # Simple greeting response
                 greeting_response = """# Hello! 👋 Welcome to the Data Science Assistant
                 
 I'm your advanced data science agent, powered by sophisticated reasoning capabilities and ready to help you with:
@@ -330,7 +303,6 @@ What would you like to explore today? 🎯"""
                 
                 return {"greeting": greeting_response, "success": True}
             else:
-                # More complex query that happens to contain greeting words
                 return {"greeting": "", "success": False, "route_to_analysis": True}
                 
         except Exception as e:
@@ -340,10 +312,8 @@ What would you like to explore today? 🎯"""
     def post(self, shared, prep_res, exec_res):
         """Handle greeting completion"""
         if exec_res.get("route_to_analysis"):
-            # Route complex queries to complete analysis
             return "complete"
         else:
-            # Simple greeting completed
             shared["final_response"] = exec_res.get("greeting", "Hello!")
             shared["analysis_complete"] = True
             return "end"
@@ -405,7 +375,6 @@ class DataAnalysisNode(Node):
             if hasattr(response, 'content'):
                 analysis = response.content
             elif isinstance(response, dict):
-                # Handle Bedrock response format
                 if 'output' in response and 'message' in response['output']:
                     message_content = response['output']['message']['content']
                     if isinstance(message_content, list) and len(message_content) > 0:
@@ -435,8 +404,7 @@ class DataAnalysisNode(Node):
         """Store analysis results"""
         shared["analysis_result"] = exec_res.get("analysis", "")
         shared["analysis_success"] = exec_res.get("success", False)
-        return "decide"  # Go back to decision node
-
+        return "decide"
 
 class DataRecommendationNode(Node):
     """Dedicated node for providing dataset recommendations when no data is available"""
@@ -461,7 +429,6 @@ class DataRecommendationNode(Node):
             logger.info("📊 Providing dataset recommendations - no data available")
             print("📊 DATA RECOMMENDATION: Providing curated datasets")
             
-            # Get dataset recommendations
             result = self.dataset_tool.recommend_datasets(
                 user_query=prep_res.get("user_query", ""),
                 domain=prep_res.get("primary_domain", "Tabular"),
@@ -496,7 +463,7 @@ class DataRecommendationNode(Node):
         shared["final_response"] = exec_res.get("recommendations", "No recommendations available")
         shared["analysis_complete"] = True
         shared["recommendation_success"] = exec_res.get("success", False)
-        return "end"  # End after providing recommendations
+        return "end"
 
 
 class MLTrainingNode(Node):
@@ -545,7 +512,6 @@ class MLTrainingNode(Node):
             
             if data_analysis.get("success") and data_analysis.get("data_found"):
                 logger.info("✅ Using agent's data analysis - generating dataset-specific AutoGluon code")                
-                # Convert agent's analysis to format expected by AutoGluon tool
                 mock_notebook_data = {
                     "success": True,
                     "variable_name": data_analysis.get("variable_name", "df"),
@@ -559,7 +525,6 @@ class MLTrainingNode(Node):
                 }
                 
                 try:
-                    # Generate dataset-specific code using agent's analysis
                     recommendation = self.autogluon_tool.generate_dataset_specific_code(
                         notebook_data=mock_notebook_data,
                         domain=autogluon_domain,
@@ -598,10 +563,8 @@ After training, run this code to see the best models:
                         
                 except Exception as e:
                     logger.warning(f"⚠️ Dataset-specific code generation error: {e}")
-                    # Fall through to error handling
                     pass
             
-            # If dataset-specific generation failed, return error
             if 'result' not in locals() or not result.get("success"):
                 logger.error("❌ Dataset-specific code generation failed and generic code was removed")
                 result = {
@@ -619,35 +582,24 @@ After training, run this code to see the best models:
     def _extract_data_from_notebook(self, notebook_content):
         """Extract actual DataFrames from notebook content string"""
         try:
-            import pandas as pd
-            import re
-            from io import StringIO
-            
             if not notebook_content:
                 return {"success": False, "error": "No notebook content available"}
             
-            # Parse notebook content to find DataFrame outputs
             dataframes = {}
             target_columns = []
             
-            # Look for DataFrame outputs (df.head(), df.info(), df.shape, etc.)
-            # Pattern to find cell outputs with tabular data
+            # Looks for DataFrame outputs (df.head(), df.info(), df.shape, etc.)
             cell_pattern = r"--- Cell \d+ \(CODE\) ---.*?SOURCE:\n(.*?)(?=OUTPUTS:|--- Cell|\Z)"
             output_pattern = r"OUTPUTS:\s*Output \d+ \([^)]+\):\s*(.*?)(?=\n\s*Output|\n--- Cell|\Z)"
             
             cells = re.findall(cell_pattern, notebook_content, re.DOTALL)
             
             for i, cell_source in enumerate(cells):
-                # Look for DataFrame variable assignments
                 df_assignments = re.findall(r"(\w+)\s*=.*?pd\.read_\w+\(", cell_source)
-                
-                # Look for df.head() or similar display commands
                 display_commands = re.findall(r"(\w+)\.(?:head|tail|info|describe|shape|columns)", cell_source)
                 
                 # Combine variable names
                 variable_names = list(set(df_assignments + display_commands))
-                
-                # Extract target column references
                 target_refs = re.findall(r"(?:y|target|label)\s*=\s*\w+\[['\"](.*?)['\"]\]", cell_source)
                 target_columns.extend(target_refs)
             
@@ -655,28 +607,22 @@ After training, run this code to see the best models:
             outputs = re.findall(output_pattern, notebook_content, re.DOTALL)
             
             for output in outputs:
-                # Try to parse tabular data from output
                 dataframe = self._parse_tabular_output(output.strip())
                 if dataframe is not None:
-                    # Assign to first found variable name or default to 'df'
                     var_name = variable_names[0] if variable_names else 'df'
                     dataframes[var_name] = dataframe
-                    break  # Use first successfully parsed DataFrame
+                    break 
             
             if dataframes:
-                # Get the first DataFrame
                 df_name, df = next(iter(dataframes.items()))
                 
-                # Determine target column
                 target_col = None
                 if target_columns:
-                    # Use first target column that exists in the DataFrame
                     for col in target_columns:
                         if col in df.columns:
                             target_col = col
                             break
                 
-                # If no explicit target found, try to infer
                 if not target_col:
                     target_col = self._infer_target_column_from_df(df)
                 
@@ -684,7 +630,6 @@ After training, run this code to see the best models:
                 problem_type = "classification"
                 if target_col and target_col in df.columns:
                     if df[target_col].dtype in ['float64', 'float32', 'int64', 'int32']:
-                        # Check if it looks like regression (many unique values)
                         unique_ratio = len(df[target_col].unique()) / len(df)
                         if unique_ratio > 0.1:  # More than 10% unique values suggests regression
                             problem_type = "regression"
@@ -711,30 +656,21 @@ After training, run this code to see the best models:
     def _parse_tabular_output(self, output_text):
         """Parse tabular output text to reconstruct DataFrame"""
         try:
-            import pandas as pd
-            from io import StringIO
             
             lines = output_text.strip().split('\n')
             
-            # Look for DataFrame-like output patterns
             # Pattern 1: Standard df.head() output with index and columns
             if any('  ' in line and not line.strip().startswith('[') for line in lines):
-                # Try to parse as whitespace-separated tabular data
-                # Remove common DataFrame artifacts
                 clean_lines = []
                 for line in lines:
                     line = line.strip()
-                    # Skip empty lines and non-data lines
                     if line and not line.startswith('[') and not line.startswith('...'):
                         clean_lines.append(line)
                 
-                if len(clean_lines) >= 2:  # At least header + one data row
+                if len(clean_lines) >= 2:
                     try:
-                        # Try parsing with pandas
                         data_text = '\n'.join(clean_lines)
                         df = pd.read_csv(StringIO(data_text), sep=r'\s+', engine='python')
-                        
-                        # Basic validation
                         if len(df) > 0 and len(df.columns) > 1:
                             return df
                     except Exception:
@@ -757,15 +693,12 @@ After training, run this code to see the best models:
     
     def _infer_target_column_from_df(self, df):
         """Infer likely target column from DataFrame structure"""
-        # Common target column names
         target_names = ['target', 'label', 'y', 'class', 'category', 'outcome', 'result', 'price', 'value']
         
-        # Check for exact matches
         for col in df.columns:
             if col.lower() in target_names:
                 return col
         
-        # Check for partial matches
         for col in df.columns:
             for target_name in target_names:
                 if target_name in col.lower():
@@ -793,10 +726,9 @@ After training, run this code to see the best models:
             # Set final response directly to ML training results - don't need complete analysis
             shared["final_response"] = exec_res.get("training_result", "")
             shared["analysis_complete"] = True
-            return "end"  # End with ML training results
+            return "end"
         else:
-            return "decide"  # Go back to decision node for alternative action
-
+            return "decide"
 
 class CompleteAnalysisNode(Node):
     """Node for comprehensive data science analysis"""
@@ -875,11 +807,9 @@ class CompleteAnalysisNode(Node):
             messages = [AgnoMessage(role="user", content=prompt)]
             response = self.model_client.invoke(messages)
             
-            # Extract content from Bedrock response format
             if hasattr(response, 'content'):
                 complete_analysis = response.content
             elif isinstance(response, dict):
-                # Handle Bedrock response format
                 if 'output' in response and 'message' in response['output']:
                     message_content = response['output']['message']['content']
                     if isinstance(message_content, list) and len(message_content) > 0:
@@ -909,4 +839,4 @@ class CompleteAnalysisNode(Node):
         """Store complete analysis results"""
         shared["final_response"] = exec_res.get("complete_analysis", "")
         shared["analysis_complete"] = True
-        return "end"  # End the analysis
+        return "end"

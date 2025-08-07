@@ -7,7 +7,7 @@ class AutoGluonTool:
     """AutoGluon tool for ML code generation with efficient template-based approach."""
     
     def __init__(self, default_time_limit: int = 120):
-        self.default_time_limit = default_time_limit  # 120 for quick testing, 600 for optimal training
+        self.default_time_limit = default_time_limit
     
     def get_status(self) -> Dict[str, Any]:
         """Get tool status and installation information."""
@@ -26,6 +26,7 @@ class AutoGluonTool:
         """Generate AutoGluon code based on problem context - requires dataset-specific generation."""
         try:
             logger.info("🎯 AutoGluon recommendation requires dataset-specific generation")
+            
             return {
                 "success": False, 
                 "error": "Generic recommendations removed. Use generate_dataset_specific_code() with actual dataset for optimal results.",
@@ -63,7 +64,6 @@ class AutoGluonTool:
             logger.info(f"🎯 Target column: {target_column}")
             logger.info(f"📊 Columns: {columns}")
             
-            # Template-based generation for efficiency
             if domain == "timeseries":
                 return self._generate_timeseries_code_for_dataset(shape, variable_name, target_column, columns, user_query)
             elif domain == "tabular":
@@ -81,8 +81,6 @@ class AutoGluonTool:
         """Detect the most likely target column from the dataset."""
         if notebook_data.get("target_column"):
             return notebook_data["target_column"]
-        
-        # Look for common target column names
         target_candidates = []
         common_targets = ['target', 'label', 'y', 'class', 'category', 'outcome', 'result', 'price', 'value', 'sales', 'revenue']
         
@@ -96,19 +94,15 @@ class AutoGluonTool:
         if target_candidates:
             return target_candidates[0]
         
-        # For time series, often the last numeric column is the target
         numeric_cols = df.select_dtypes(include=['number']).columns.tolist()
         if numeric_cols:
-            return numeric_cols[-1]  # Use last numeric column
-        
-        # Fallback to last column
+            return numeric_cols[-1]
         return df.columns[-1] if len(df.columns) > 0 else 'target'
     
     def _generate_timeseries_code_for_dataset(self, shape, variable_name: str, target_column: str, columns: list, user_query: str) -> Dict[str, Any]:
         """Generate time series code customized for the specific dataset."""
         
-        # Determine prediction length from query
-        prediction_length = 24  # default
+        prediction_length = 24
         if any(word in user_query.lower() for word in ["daily", "day"]):
             prediction_length = 7
         elif any(word in user_query.lower() for word in ["hourly", "hour"]):
@@ -153,12 +147,19 @@ ts_data_formatted = ts_data_formatted.rename(columns={{timestamp_col: 'timestamp
 cols = ['item_id', 'timestamp'] + [col for col in ts_data_formatted.columns if col not in ['item_id', 'timestamp']]
 ts_data_formatted = ts_data_formatted[cols]
 
-print("Dataset-specific formatting completed:")
-print(f"Original shape: {{len({variable_name})}}, {{len({variable_name}.columns)}}")
-print(f"Target column: '{target_column}'")
-print(f"Formatted columns: {{list(ts_data_formatted.columns)}}")
-print("\\nFirst few rows:")
-print(ts_data_formatted.head())
+# Verify target column exists
+if '{target_column}' not in ts_data_formatted.columns:
+    print("⚠️  Target column '{target_column}' not found!")
+    print("Available columns:", list(ts_data_formatted.columns))
+    # Use first numeric column as backup
+    numeric_cols = ts_data_formatted.select_dtypes(include=['number']).columns.tolist()
+    if len(numeric_cols) > 0:
+        actual_target = numeric_cols[0]
+        print(f"Using '{{actual_target}}' as target instead")
+    else:
+        actual_target = '{target_column}'
+else:
+    actual_target = '{target_column}'
 
 # Create TimeSeriesDataFrame
 ts_autogluon = TimeSeriesDataFrame(ts_data_formatted)
@@ -223,6 +224,7 @@ print("The WeightedEnsemble combines multiple models for optimal performance")""
     
     def _generate_tabular_code_for_dataset(self, shape, variable_name: str, target_column: str, columns: list, user_query: str) -> Dict[str, Any]:
         """Generate tabular code customized for the specific dataset."""
+        
         problem_type = None
         if any(word in user_query.lower() for word in ["regression", "predict", "estimate", "continuous"]):
             problem_type = "regression"
@@ -234,6 +236,21 @@ from autogluon.tabular import TabularDataset, TabularPredictor
 # - Target Column: '{target_column}'
 # - Available Columns: {columns}
 # - Problem Type: {problem_type}
+
+# Verify target column exists
+if '{target_column}' not in {variable_name}.columns:
+    print("⚠️  Target column '{target_column}' not found!")
+    print("Available columns:", list({variable_name}.columns))
+    # Try to find a suitable target column
+    numeric_cols = {variable_name}.select_dtypes(include=['number']).columns.tolist()
+    if len(numeric_cols) > 0:
+        actual_target = numeric_cols[-1]  # Use last numeric column
+        print(f"Using '{{actual_target}}' as target instead")
+    else:
+        actual_target = {variable_name}.columns[-1]  # Use last column
+        print(f"Using '{{actual_target}}' as target instead")
+else:
+    actual_target = '{target_column}'
 
 print(f"Training with target column: {{actual_target}}")
 print(f"Dataset shape: {{{variable_name}.shape}}")
@@ -289,6 +306,15 @@ from autogluon.multimodal import MultiModalPredictor
 # - Shape: {shape}
 # - Target Column: '{target_column}'
 # - Available Columns: {columns}
+
+# Verify target column exists
+if '{target_column}' not in {variable_name}.columns:
+    print("⚠️  Target column '{target_column}' not found!")
+    print("Available columns:", list({variable_name}.columns))
+    actual_target = {variable_name}.columns[-1]  # Use last column
+    print(f"Using '{{actual_target}}' as target instead")
+else:
+    actual_target = '{target_column}'
 
 print(f"Training multimodal model with target: {{actual_target}}")
 print(f"Dataset shape: {{{variable_name}.shape}}")

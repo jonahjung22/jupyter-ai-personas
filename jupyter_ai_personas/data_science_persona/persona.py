@@ -58,12 +58,10 @@ class DataSciencePersona(BasePersona):
         if not self._initialization_attempted:
             self._initialization_attempted = True
             try:
-                # Create AWS Bedrock client
                 model_id = self.config_manager.lm_provider_params["model_id"]
                 logger.info(f"🔧 Using model_id: {model_id}")
                 model_client = AwsBedrock(id=model_id, session=session)
                 
-                # Create PocketFlow Agent
                 self.agent = DataScienceAgent(model_client=model_client)
                 
                 logger.info("✅ DataSciencePersona agent initialized with AWS Bedrock")
@@ -73,13 +71,11 @@ class DataSciencePersona(BasePersona):
                 logger.error(f"Available config_manager attributes: {dir(self.config_manager)}")
                 if hasattr(self.config_manager, 'lm_provider_params'):
                     logger.error(f"Available lm_provider_params keys: {list(self.config_manager.lm_provider_params.keys())}")
-                # Create agent without model client for fallback
                 self.agent = DataScienceAgent(model_client=None)
                 logger.info("⚠️ DataSciencePersona agent initialized in fallback mode")
             except Exception as e:
                 logger.error(f"❌ Initialization failed: {e}")
                 logger.error(f"Error type: {type(e).__name__}")
-                # Create agent without model client for fallback
                 self.agent = DataScienceAgent(model_client=None)
                 logger.info("⚠️ DataSciencePersona agent initialized in fallback mode")
     
@@ -88,13 +84,10 @@ class DataSciencePersona(BasePersona):
         logger.info(f"🤖 DATA SCIENCE AGENT REQUEST: {message.body}")
         
         try:
-            # Ensure agent is initialized
             self._ensure_agent_initialized()
             
-            # Get context information
             context_info = await self._prepare_context_info(message)
             
-            # Run PocketFlow agent analysis
             result = self.agent.run_analysis(
                 user_query=message.body,
                 **context_info
@@ -102,7 +95,6 @@ class DataSciencePersona(BasePersona):
             
             response_content = result.get("response", "Error: No response generated")
             
-            # Add processing summary to response
             if result.get("processing_summary"):
                 summary = result["processing_summary"]
                 status_info = f"""
@@ -121,7 +113,6 @@ class DataSciencePersona(BasePersona):
                 
                 response_content += status_info
             
-            # Log processing results
             self._log_processing_summary(result)
             
         except Exception as e:
@@ -142,13 +133,11 @@ class DataSciencePersona(BasePersona):
                                 ```
                                 Please try again with a simpler query."""
         
-        # Stream response back to user
         await self.stream_message(self._create_response_iterator(response_content))
     
     async def _prepare_context_info(self, message: Message) -> Dict[str, Any]:
         """Prepare context information for the agent"""
         try:
-            # Get chat history
             history = YChatHistory(ychat=self.ychat, k=2)
             messages = await history.aget_messages()
             
@@ -183,7 +172,6 @@ class DataSciencePersona(BasePersona):
             logger.info(f"   Context Loaded: {result.get('context_loaded', False)}")
             logger.info(f"   Notebook Loaded: {result.get('notebook_loaded', False)}")
             
-            # Only log notebook path if it was explicitly provided
             notebook_path = result.get('notebook_path', '')
             if notebook_path:
                 logger.info(f"   Notebook Path: {notebook_path}")
