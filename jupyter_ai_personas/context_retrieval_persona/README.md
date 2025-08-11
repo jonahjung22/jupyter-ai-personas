@@ -2,238 +2,213 @@
 
 ## Overview
 
-The Context Retriever Persona is a multi-agent system that understands your current data science work and finds relevant resources from the comprehensive Python Data Science Handbook using semantic search. It consists of three specialized agents working together to provide actionable insights.
+The Context Retrieval Persona analyzes your data science notebooks and finds relevant resources from the Python Data Science Handbook using RAG (Retrieval-Augmented Generation). It employs a three-agent system to provide comprehensive analysis and actionable recommendations.
 
 ## Features
 
-- **Notebook Analysis**: Automatically extracts context from your Jupyter notebooks including libraries, analysis stage, and objectives
-- **RAG-Powered Search**: Semantic search through the entire Python Data Science Handbook repository
-- **Context-Aware Recommendations**: Provides relevant code examples, best practices, and documentation based on your current work
-- **Multi-Agent Architecture**: Three specialized agents for analysis, search, and report generation
-- **Comprehensive Reports**: Generates detailed markdown reports with actionable next steps
-- **Optimized Performance**: Improved caching and simplified logging for faster execution
-- **Automatic Report Saving**: Generated reports are automatically saved as `repo_context.md`
-- **Improved RAG Parameters**: Increased chunk size (1500 chars) and search results (8 chunks) for better coverage
+- **Intelligent Notebook Analysis**: Extracts libraries, analysis stage, domain, and objectives from your notebooks
+- **Full Notebook RAG Search**: Returns complete relevant notebooks instead of fragments for comprehensive context
+- **Handbook-Only Search**: Avoids redundant searching by focusing on external handbook content only
+- **Multi-Agent Coordination**: NotebookAnalyzer, KnowledgeSearcher, and MarkdownGenerator working together
+- **Comprehensive Markdown Reports**: Detailed reports with code examples, explanations, and next steps
+- **Optimized Search**: 1-2 complete notebooks per query with clean terminal logging
+- **Automatic Report Generation**: Creates `repo_context.md` with comprehensive analysis
 
 ## Architecture
 
 ### Three-Agent System
 
-1. **NotebookAnalyzer**: Extracts context from your notebook content
-   - Identifies libraries being used (pandas, numpy, scikit-learn, etc.)
-   - Determines analysis stage (data loading, EDA, preprocessing, modeling, etc.)
-   - Extracts objectives and current progress
+1. **NotebookAnalyzer**: Extracts structured context from your notebook
 
-2. **KnowledgeSearcher**: Performs targeted RAG searches
-   - Multiple search strategies based on context
-   - Semantic search through 100+ handbook notebooks
-   - Filters for relevant code examples and explanations
+   - Uses `extract_rag_context` tool to read notebook content
+   - Identifies libraries (pandas, numpy, sklearn, matplotlib, etc.)
+   - Determines analysis stage (data_loading, eda, preprocessing, modeling, evaluation, visualization)
+   - Outputs structured JSON with path, libraries, stage, domain, and objectives
 
-3. **MarkdownGenerator**: Creates comprehensive reports
-   - Executive summaries of findings
-   - Relevant code examples with explanations
-   - Actionable next steps for your analysis
+2. **KnowledgeSearcher**: Performs targeted handbook-only RAG searches
+
+   - Generates 4-5 targeted search queries based on notebook analysis
+   - Uses `search_handbook_only` to find relevant complete notebooks
+   - Each search returns 1-2 most relevant notebooks (not fragments)
+   - Provides comprehensive handbook content to MarkdownGenerator
+
+3. **MarkdownGenerator**: Creates detailed markdown reports
+   - Synthesizes notebook analysis with RAG search results
+   - Includes substantial content from retrieved handbooks
+   - Creates cross-references between user's work and handbook examples
+   - Saves comprehensive reports as `repo_context.md`
 
 ## Core Components
 
-### Context Retriever Persona (`context_retriever_persona.py`)
-Main persona class that orchestrates the three-agent system and handles Jupyter AI integration.
+### Context Retrieval Persona (`persona.py`)
 
-### RAG Core System (`rag_core.py`)
-- Repository management for Python Data Science Handbook
-- Document extraction from Jupyter notebooks
-- Vector storage using ChromaDB
-- Semantic search with HuggingFace embeddings
+- Main persona class orchestrating the three-agent system
+- Handles Jupyter AI integration and message processing
+- Initializes AWS Bedrock models and agent coordination
+- Manages greeting detection and team workflow
 
-### RAG Integration Tool (`rag_integration_tool.py`)
-Agno tool wrapper providing clean integration with the agent system:
-- `search_repository()`: General semantic search
-- `search_by_topic()`: Topic-specific searches
-- `search_code_examples()`: Code-focused searches
+### RAG Tool (`rag_tool.py`)
+
+Core RAG system with two main classes:
+
+- **RAG**: Loads handbook content into ChromaDB vectorstore using HuggingFace embeddings
+- **RAGTool**: Agno toolkit providing `search_handbook_only()` function
+- Returns complete notebooks (1-2 per search) instead of fragments
+- Clean terminal logging showing retrieved notebook titles and stats
 
 ### Notebook Reader Tool (`file_reader_tool.py`)
-Comprehensive notebook content extraction:
-- Reads all cell types (code, markdown)
-- Extracts outputs and metadata
-- Detects libraries and analysis patterns
-- Provides structured context for search
+
+- `NotebookReaderTool`: Provides `extract_rag_context` function
+- Reads complete notebook content and metadata
+- Extracts context for the NotebookAnalyzer agent
 
 ## Installation & Setup
 
 ### Prerequisites
+
+Install the context retrieval persona with its dependencies:
+
 ```bash
-# Install required packages
-pip install chromadb sentence-transformers langchain nbformat gitpython
+pip install -e ".[context_retriever]"
 ```
 
-### Quick Setup
+This installs:
+
+- `agno` - Multi-agent framework
+- `boto3` - AWS Bedrock integration
+- `langchain` & `langchain-core` & `langchain-community` - RAG framework
+- `sentence-transformers` - Embedding models
+- `chromadb` - Vector database
+- `nbformat` - Jupyter notebook reading
+
+### Setup Python Data Science Handbook
+
 ```bash
-# Run the setup script
-python setup_rag_system.py
+# Clone the handbook repository
+cd jupyter_ai_personas/context_retrieval_persona/
+git clone https://github.com/jakevdp/PythonDataScienceHandbook.git
 ```
 
-This will:
-1. Check dependencies
-2. Clone the Python Data Science Handbook repository
-3. Build the vector store (first run takes 5-10 minutes)
-4. Test the system functionality
+### AWS Configuration
 
-### Manual Setup
-```python
-from rag_core import create_handbook_rag
+Configure AWS credentials for Bedrock access:
 
-# Initialize the RAG system
-rag = create_handbook_rag(force_rebuild=False)
-
-# Test search functionality
-results = rag.search("pandas dataframe operations", k=5)
+```bash
+aws configure
+# or set environment variables:
+export AWS_ACCESS_KEY_ID=your_key
+export AWS_SECRET_ACCESS_KEY=your_secret
+export AWS_DEFAULT_REGION=us-east-1
 ```
 
 ## Usage
 
 ### Basic Usage
-In Jupyter AI, activate the Context Retriever Persona and provide:
+
+In Jupyter AI chat, use the @ mention to activate the persona:
 
 ```
-I need help with data visualization using matplotlib and seaborn. 
-notebook: /path/to/my/analysis.ipynb
+@ContextRetrievalPersona notebook: /path/to/your/notebook.ipynb
+Analyze my machine learning workflow and find relevant handbook resources
 ```
 
-### Typical Workflow
-1. **Context Analysis**: The system reads your notebook to understand:
-   - What libraries you're using
-   - What stage of analysis you're in
-   - What data you're working with
+### Workflow Example
 
-2. **Knowledge Search**: Performs multiple targeted searches:
-   - Library-specific examples
-   - Analysis stage best practices
-   - Problem domain patterns
+1. **User Request**: Provides notebook path and description
+2. **NotebookAnalyzer**: Reads and analyzes notebook content
+3. **KnowledgeSearcher**: Performs 4-5 targeted searches in handbook
+4. **MarkdownGenerator**: Creates comprehensive `repo_context.md` report
 
-3. **Report Generation**: Creates a comprehensive markdown report with:
-   - Executive summary of findings
-   - Current notebook analysis
-   - Relevant code examples
-   - Actionable next steps
+### Terminal Output
 
-### Example Output
-```markdown
-## Executive Summary
-Based on your notebook analysis, you're in the exploratory data analysis stage 
-using pandas and matplotlib. Found relevant handbook content for data 
-visualization best practices and statistical analysis patterns.
+During processing, you'll see clean RAG search logs:
 
-## Current Notebook Analysis
-- Libraries: pandas, matplotlib, seaborn
-- Analysis Stage: exploratory_data_analysis
-- Data Operations: groupby, pivot, plotting
-
-## Relevant Resources
-### Data Visualization with Matplotlib
-[Code examples and explanations from the handbook]
-
-### Statistical Analysis Patterns
-[Relevant statistical methods and implementations]
-
-## Actionable Next Steps
-1. Implement correlation analysis using the patterns from Section 04.05
-2. Consider using seaborn for advanced statistical plots
-3. Apply dimensionality reduction techniques from Chapter 05
+```
+🔍 RAG SEARCH: 'sklearn RandomForest classification'
+📚 Found 2 relevant notebooks:
+  1. 05.08-Random-Forests.ipynb (15 cells, 12450 chars)
+  2. 05.03-Hyperparameters-and-Model-Validation.ipynb (22 cells, 18920 chars)
 ```
 
-## Configuration
+### Generated Report Structure
 
-### Environment Variables
-```bash
-# Optional: Configure data paths
-export RAG_REPO_PATH="/path/to/PythonDataScienceHandbook"
-export RAG_VECTOR_STORE_PATH="/path/to/vector_stores"
-```
+The `repo_context.md` file includes:
 
-### Customization
-Modify parameters in `rag_core.py`:
-```python
-rag = PythonDSHandbookRAG(
-    embedding_model="sentence-transformers/all-MiniLM-L6-v2",
-    chunk_size=1500,         # Increased chunk size
-    chunk_overlap=300        # Increased overlap
-)
-```
+- **Executive Summary**: Overview of findings and connections
+- **Current Notebook Analysis**: Libraries, stage, domain, objectives from your notebook
+- **Comprehensive Handbook Resources**: Full code examples and explanations from retrieved notebooks
+- **Detailed Code Examples**: Complete implementations from handbook
+- **Cross-References and Learning Paths**: Connections between your work and handbook content
+- **Actionable Implementation Steps**: Specific next steps based on analysis
 
-### RAG Search Parameters
-- **Default Results**: 8 chunks per search (increased from 5)
-- **Chunk Size**: 1500 characters (increased from 1000)
-- **Chunk Overlap**: 300 characters (increased from 200)
-- **Efficient Logging**: Concise search result logging with essential debugging information
+## Technical Details
+
+### RAG Implementation
+
+- **Embedding Model**: `sentence-transformers/all-MiniLM-L6-v2`
+- **Vector Store**: ChromaDB with persistent storage
+- **Search Strategy**: Similarity search returning complete notebooks (not fragments)
+- **Results per Search**: 2 most relevant complete notebooks
+- **Cell-Based Chunking**: Uses notebook cells as natural document boundaries
+
+### Optimizations
+
+- **Handbook-Only Search**: Avoids redundant notebook content in RAG results
+- **Complete Notebook Retrieval**: Returns full notebooks instead of fragments for better context
+- **One-Time Loading**: Vector store loaded once per session with handbook_loaded flag
+- **Clean Logging**: Minimal terminal output showing only essential search information
+- **JSON Validation Fix**: Uses `capture_validation_error=None` to suppress nbformat warnings
 
 ## File Structure
 
 ```
 context_retrieval_persona/
-├── README.md                      # This file
-├── context_retrieval_persona.py   # Main persona class
-├── rag_core.py                    # Core RAG system
-├── rag_integration_tool.py        # Agno tool wrapper
-├── file_reader_tool.py            # Notebook content extraction
-├── setup_rag_system.py           # Setup script
+├── README.md                      # This documentation
+├── persona.py                     # Main persona class with three-agent system
+├── rag_tool.py                   # RAG and RAGTool classes for handbook search
+├── file_reader_tool.py            # NotebookReaderTool for content extraction
 ├── __init__.py                    # Package initialization
-├── test_context_retrieval.ipynb   # Test notebook
 ├── repo_context.md               # Generated markdown reports
-├── PythonDataScienceHandbook/     # Cloned repository
+├── PythonDataScienceHandbook/     # Cloned handbook repository
 │   └── notebooks/                 # 100+ handbook notebooks
 └── vector_stores/                 # ChromaDB vector storage
-    └── python_ds_handbook/
+    └── rag/                       # Renamed from simple_rag
         ├── chroma.sqlite3
-        └── metadata.json
+        └── [vector files]
 ```
-
-## Performance Notes
-
-- **First Run**: 5-10 minutes to build vector store
-- **Subsequent Runs**: <3 seconds using cached vectors and optimized code
-- **Memory Usage**: ~500MB for full vector store
-- **Search Speed**: <1 second for semantic queries
-- **Recent Optimizations**: Simplified logging, improved caching, and reduced code complexity
 
 ## Troubleshooting
 
 ### Common Issues
 
-1. **Import Errors**: Ensure all dependencies are installed
+1. **Missing Dependencies**: Install all required packages
+
    ```bash
-   pip install chromadb sentence-transformers langchain
+   pip install -e ".[context_retriever]"
    ```
 
-2. **Vector Store Issues**: Force rebuild if corrupted
-   ```python
-   rag = create_handbook_rag(force_rebuild=True)
-   ```
+2. **Handbook Not Found**: Clone the handbook repository
 
-3. **Repository Problems**: Check git connectivity
    ```bash
+   cd jupyter_ai_personas/context_retrieval_persona/
    git clone https://github.com/jakevdp/PythonDataScienceHandbook.git
    ```
 
-### Debug Information
-```python
-# Check system status with setup script
-python setup_rag_system.py
+3. **AWS/Bedrock Issues**: Configure AWS credentials
 
-# Or manually check RAG system
-from rag_integration_tool import create_simple_rag_tools
-rag_tool = create_simple_rag_tools()
-status = rag_tool.get_system_status()
-print(status)  # Detailed system diagnostics
-```
+   ```bash
+   aws configure
+   ```
+
+4. **JSON Validation Warnings**: These are now suppressed with `capture_validation_error=None`
+
+5. **Vector Store Loading**: First run builds the vector store (5-10 minutes), subsequent runs are fast
 
 ## Contributing
 
 To extend the system:
 
-1. **Add New Search Methods**: Extend `RAGSearchTool` in `rag_integration_tool.py`
-2. **Enhance Context Extraction**: Modify `NotebookReaderTool` in `file_reader_tool.py`
-3. **Improve Agent Instructions**: Update agent prompts in `context_retriever_persona.py`
-
-## License
-
-This project uses the Python Data Science Handbook, which is available under the MIT License. See the handbook repository for full license details.
+1. **Enhance RAG Search**: Modify `RAGTool` class in `rag_tool.py`
+2. **Improve Context Extraction**: Update `NotebookReaderTool` in `file_reader_tool.py`
+3. **Refine Agent Instructions**: Update agent prompts in `persona.py`
+4. **Add New Analysis Capabilities**: Extend the three-agent system workflow

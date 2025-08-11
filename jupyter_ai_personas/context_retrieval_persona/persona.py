@@ -8,7 +8,7 @@ from agno.tools.file import FileTools
 import boto3
 from langchain_core.messages import HumanMessage
 from .file_reader_tool import NotebookReaderTool
-from .rag_integration_tool import create_simple_rag_tools
+from .rag_tool import create_rag_tools
 
 session = boto3.Session()
 
@@ -49,7 +49,7 @@ class ContextRetrievalPersona(BasePersona):
     def get_knowledge_tools(self):
         """Get knowledge search tools - RAG if available, FileTools as fallback."""
         try:
-            return [create_simple_rag_tools()]
+            return [create_rag_tools()]
         except Exception:
             return [FileTools()]
 
@@ -61,18 +61,32 @@ class ContextRetrievalPersona(BasePersona):
         
         notebook_analyzer = Agent(
             name="NotebookAnalyzer",
-            role="Notebook analysis specialist that extracts context for search",
+            role="Notebook analysis specialist that extracts context and content for search",
             model=AwsBedrock(id=model_id, session=session),
             instructions=[
                 "Use extract_rag_context tool to read notebook content - do NOT generate new code",
-                "Look for notebook path in user prompt (format: 'notebook: /path/to/file.ipynb')",
+                "Look for notebook path in user prompt (extract the actual file path)",
                 "If no path provided, use: /Users/jujonahj/jupyter-ai-personas/jupyter_ai_personas/data_science_persona/test_context_retrieval.ipynb",
                 "Extract notebook context including:",
                 "- Libraries being used (pandas, numpy, sklearn, matplotlib, etc.)",
                 "- Analysis stage: data_loading, eda, preprocessing, modeling, evaluation, visualization", 
                 "- Data characteristics and problem domain",
                 "- Current objectives and next steps",
-                "Create structured context summary for the KnowledgeSearcher"
+                "CRITICAL: You MUST end your response with this EXACT format for KnowledgeSearcher:",
+                "",
+                "```json",
+                "NOTEBOOK_ANALYSIS: {",
+                "  \"path\": \"/extracted/path/from/notebook.ipynb\",",
+                "  \"name\": \"extracted_filename.ipynb\",",
+                "  \"libraries\": [\"list\", \"of\", \"libraries\"],",
+                "  \"stage\": \"analysis_stage_identified\",",
+                "  \"domain\": \"problem_domain\",",
+                "  \"objectives\": \"current_objectives\",",
+                "  \"content_summary\": \"brief summary of notebook content\"",
+                "}",
+                "```",
+                "",
+                "This provides context for handbook searches without complex JSON nesting."
             ],
             tools=notebook_tools,
             markdown=True,
@@ -84,15 +98,21 @@ class ContextRetrievalPersona(BasePersona):
             role="Repository search specialist that finds relevant handbook content",
             model=AwsBedrock(id=model_id, session=session),
             instructions=[
-                "Use available search tools to find relevant Python Data Science Handbook content",
-                "Receive context from NotebookAnalyzer (libraries, stage, objectives)",
-                "Generate multiple targeted searches based on the context:",
-                "- Primary objective searches",
-                "- Library-specific searches", 
-                "- Analysis stage searches",
-                "- Problem domain searches",
-                "Find code examples, explanations, and best practices",
-                "Focus on content matching the detected libraries and analysis stage"
+                "1. Look for NOTEBOOK_ANALYSIS JSON in NotebookAnalyzer's response",
+                "2. Extract: libraries, stage, domain, objectives, content_summary",
+                "3. Generate 4-5 targeted searches based on this analysis to find relevant handbook content:",
+                "   - Primary objective/task searches (e.g., 'classification', 'clustering', 'dimensionality reduction')",
+                "   - Library-specific searches (e.g., 'sklearn RandomForest', 'pandas preprocessing', 'matplotlib visualization')", 
+                "   - Analysis stage searches (e.g., 'model evaluation', 'feature selection', 'data exploration')",
+                "   - Problem domain/data type searches (e.g., 'time series', 'text analysis', 'image processing')",
+                "4. Use ONLY search_handbook_only(query='terms') for each search",
+                "5. CRITICAL: Provide ALL search results to MarkdownGenerator with key content from each notebook:","   - Complete list of all retrieved notebooks from all searches",
+                "   - FULL code examples, algorithms, and implementations from each notebook",
+                "   - Detailed explanations, theory, and methodology from handbook cells",
+                "   - Best practices, tips, and advanced techniques mentioned",
+                "   - Specific connections between each handbook topic and user's notebook analysis",
+                "6. Ensure MarkdownGenerator receives comprehensive handbook content to work with",
+                "IMPORTANT: Only search handbook - notebook content is already analyzed by NotebookAnalyzer!"
             ],
             tools=knowledge_tools,
             markdown=True,
@@ -104,16 +124,23 @@ class ContextRetrievalPersona(BasePersona):
             role="Content synthesis specialist that creates markdown reports",
             model=AwsBedrock(id=model_id, session=session),
             instructions=[
-                "Create comprehensive markdown reports using search results",
+                "Create comprehensive markdown reports using ALL available RAG search results from KnowledgeSearcher",
+                "CRITICAL: Extract and include substantial content from each RAG search result - don't just summarize",
                 "Structure with sections:",
                 "- Executive Summary",
-                "- Current Notebook Analysis", 
-                "- Relevant Resources",
-                "- Code Examples",
-                "- Actionable Next Steps",
-                "Include relevant code snippets with proper formatting",
-                "Provide specific next steps based on current analysis stage",
-                "Focus on actionable insights for immediate application",
+                "- Current Notebook Analysis (from NotebookAnalyzer)",
+                "- Comprehensive Handbook Resources (include FULL relevant code from each RAG result)",
+                "- Detailed Code Examples and Explanations (extensive quotes from handbook notebooks)",
+                "- Cross-References and Learning Paths",
+                "- Actionable Implementation Steps",
+                "",
+                "REQUIREMENTS:",
+                "- Include complete code blocks from handbook results, not just snippets",
+                "- Quote extensive explanations and context from handbook cells",
+                "- Show multiple approaches/techniques for each topic from different handbook sections",
+                "- Create detailed cross-references between user's notebook and handbook content",
+                "- Provide substantial educational content that users can learn from",
+                "",
                 "IMPORTANT: Name the markdown file: 'repo_context.md'"
             ],
             tools=[FileTools()],

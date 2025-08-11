@@ -67,8 +67,10 @@ context_retriever = [
     "boto3",
     "langchain",
     "langchain-core",
+    "langchain-community",
     "sentence-transformers",
-    "chromadb"
+    "chromadb",
+    "nbformat"
 ]
 
 all = ["jupyter-ai-personas[finance,emoji,software_team,data_analytics,pr_review,context_retriever]"]
